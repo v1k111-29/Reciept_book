@@ -1,0 +1,26 @@
+{
+  "name": "s14-receipt-book-chaincode",
+  "version": "0.1.0",
+  "description": "S14 Receipt Book chaincode for Drunix (Hyperledger Fabric 2.5-compatible). Owner: P2.",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "fabric-chaincode-node start"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "fabric-contract-api": "^2.5.8",
+    "fabric-shim": "^2.5.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

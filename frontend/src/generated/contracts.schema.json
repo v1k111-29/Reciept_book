@@ -1,0 +1,1072 @@
+{
+  "backend_routes": {
+    "create_record": "POST /records",
+    "get_timeline": "GET /records/{sb_hash}",
+    "health": "GET /health",
+    "list_records": "GET /records",
+    "metrics": "GET /metrics",
+    "record_milestone": "POST /records/{sb_hash}/milestones"
+  },
+  "contracts_version": "0.1.0",
+  "default_msp_roles": {
+    "Org1MSP": "AD_BANK",
+    "Org2MSP": "EXPORTERS_BODY"
+  },
+  "enums": {
+    "CauseBucket": [
+      "CONSISTENT",
+      "NO_PAYMENT_RECORDED",
+      "EXPORTER_LINKAGE_MISSING",
+      "BANK_NOT_MARKED_OFF",
+      "DOWNSTREAM_SYNC"
+    ],
+    "ChaincodeFunction": [
+      "CreateRecord",
+      "RecordMilestone",
+      "GetRecord",
+      "ListRecords"
+    ],
+    "CustomsStatus": [
+      "REALISED",
+      "PENDING"
+    ],
+    "ErrorCode": [
+      "VALIDATION",
+      "NOT_FOUND",
+      "ALREADY_EXISTS",
+      "WRONG_ROLE",
+      "WRONG_BANK",
+      "PRECONDITION_FAILED",
+      "DUPLICATE_MILESTONE",
+      "ENDORSEMENT_FAILED",
+      "LEDGER_UNAVAILABLE"
+    ],
+    "Milestone": [
+      "DOCS_ACKNOWLEDGED",
+      "PAYMENT_RECEIVED",
+      "EBRC_SELF_CERTIFIED",
+      "EDPMS_MARKED_OFF",
+      "CUSTOMS_STATUS_OBSERVED"
+    ],
+    "OrgRole": [
+      "AD_BANK",
+      "EXPORTERS_BODY",
+      "CUSTOMS_VIEWER"
+    ]
+  },
+  "gateway_routes": {
+    "evaluate": "POST /evaluate",
+    "health": "GET /health",
+    "submit": "POST /submit"
+  },
+  "hash_pattern": "^[0-9a-f]{64}$",
+  "models": {
+    "CauseAssessment": {
+      "$defs": {
+        "CauseBucket": {
+          "description": "Where a Customs 'pending' most likely comes from (docs/PROBLEM.md, 4.3). Heuristic [I].",
+          "enum": [
+            "CONSISTENT",
+            "NO_PAYMENT_RECORDED",
+            "EXPORTER_LINKAGE_MISSING",
+            "BANK_NOT_MARKED_OFF",
+            "DOWNSTREAM_SYNC"
+          ],
+          "title": "CauseBucket",
+          "type": "string"
+        },
+        "Milestone": {
+          "description": "Milestones recorded per shipping bill (docs/PROBLEM.md, Part 6.3).",
+          "enum": [
+            "DOCS_ACKNOWLEDGED",
+            "PAYMENT_RECEIVED",
+            "EBRC_SELF_CERTIFIED",
+            "EDPMS_MARKED_OFF",
+            "CUSTOMS_STATUS_OBSERVED"
+          ],
+          "title": "Milestone",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "bucket": {
+          "$ref": "#/$defs/CauseBucket"
+        },
+        "explanation": {
+          "title": "Explanation",
+          "type": "string"
+        },
+        "missing": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Milestone"
+          },
+          "title": "Missing",
+          "type": "array"
+        }
+      },
+      "required": [
+        "bucket",
+        "explanation"
+      ],
+      "title": "CauseAssessment",
+      "type": "object"
+    },
+    "CreateRecordRequest": {
+      "additionalProperties": false,
+      "description": "Frontend -> backend. The backend hashes these fields (P4, domain/hashing.py).",
+      "properties": {
+        "port_code": {
+          "maxLength": 10,
+          "minLength": 1,
+          "title": "Port Code",
+          "type": "string"
+        },
+        "sb_date": {
+          "format": "date",
+          "title": "Sb Date",
+          "type": "string"
+        },
+        "sb_number": {
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Sb Number",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sb_number",
+        "port_code",
+        "sb_date"
+      ],
+      "title": "CreateRecordRequest",
+      "type": "object"
+    },
+    "ErrorBody": {
+      "$defs": {
+        "ErrorCode": {
+          "enum": [
+            "VALIDATION",
+            "NOT_FOUND",
+            "ALREADY_EXISTS",
+            "WRONG_ROLE",
+            "WRONG_BANK",
+            "PRECONDITION_FAILED",
+            "DUPLICATE_MILESTONE",
+            "ENDORSEMENT_FAILED",
+            "LEDGER_UNAVAILABLE"
+          ],
+          "title": "ErrorCode",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ErrorBody",
+      "type": "object"
+    },
+    "GatewayRequest": {
+      "$defs": {
+        "ChaincodeFunction": {
+          "description": "Transaction names exposed by the chaincode (P2) and called by the gateway (P3).",
+          "enum": [
+            "CreateRecord",
+            "RecordMilestone",
+            "GetRecord",
+            "ListRecords"
+          ],
+          "title": "ChaincodeFunction",
+          "type": "string"
+        },
+        "OrgRole": {
+          "description": "Role of a Drunix organisation (MSP) in the pilot.",
+          "enum": [
+            "AD_BANK",
+            "EXPORTERS_BODY",
+            "CUSTOMS_VIEWER"
+          ],
+          "title": "OrgRole",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Backend (P4) -> gateway (P3). `identity` picks which org's credentials sign.",
+      "properties": {
+        "args": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "array"
+        },
+        "function": {
+          "$ref": "#/$defs/ChaincodeFunction"
+        },
+        "identity": {
+          "$ref": "#/$defs/OrgRole"
+        }
+      },
+      "required": [
+        "function",
+        "identity"
+      ],
+      "title": "GatewayRequest",
+      "type": "object"
+    },
+    "GatewayResult": {
+      "$defs": {
+        "ErrorBody": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ErrorBody",
+          "type": "object"
+        },
+        "ErrorCode": {
+          "enum": [
+            "VALIDATION",
+            "NOT_FOUND",
+            "ALREADY_EXISTS",
+            "WRONG_ROLE",
+            "WRONG_BANK",
+            "PRECONDITION_FAILED",
+            "DUPLICATE_MILESTONE",
+            "ENDORSEMENT_FAILED",
+            "LEDGER_UNAVAILABLE"
+          ],
+          "title": "ErrorCode",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Gateway (P3) -> backend (P4).",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorBody"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "payload": {
+          "default": null,
+          "title": "Payload"
+        },
+        "tx_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tx Id"
+        }
+      },
+      "required": [
+        "ok"
+      ],
+      "title": "GatewayResult",
+      "type": "object"
+    },
+    "MetricsSummary": {
+      "additionalProperties": false,
+      "description": "The three pilot measures (docs/PROBLEM.md, 6.6). None = not enough data.",
+      "properties": {
+        "median_docs_handover_to_ack_days": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Median Docs Handover To Ack Days"
+        },
+        "median_payment_to_markoff_days": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Median Payment To Markoff Days"
+        },
+        "n_records": {
+          "minimum": 0,
+          "title": "N Records",
+          "type": "integer"
+        },
+        "pending_total": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Pending Total",
+          "type": "integer"
+        },
+        "pending_with_markoff": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Pending With Markoff",
+          "type": "integer"
+        },
+        "pending_with_markoff_share": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending With Markoff Share"
+        }
+      },
+      "required": [
+        "n_records"
+      ],
+      "title": "MetricsSummary",
+      "type": "object"
+    },
+    "MilestoneEvent": {
+      "$defs": {
+        "CustomsStatus": {
+          "enum": [
+            "REALISED",
+            "PENDING"
+          ],
+          "title": "CustomsStatus",
+          "type": "string"
+        },
+        "Milestone": {
+          "description": "Milestones recorded per shipping bill (docs/PROBLEM.md, Part 6.3).",
+          "enum": [
+            "DOCS_ACKNOWLEDGED",
+            "PAYMENT_RECEIVED",
+            "EBRC_SELF_CERTIFIED",
+            "EDPMS_MARKED_OFF",
+            "CUSTOMS_STATUS_OBSERVED"
+          ],
+          "title": "Milestone",
+          "type": "string"
+        },
+        "OrgRole": {
+          "description": "Role of a Drunix organisation (MSP) in the pilot.",
+          "enum": [
+            "AD_BANK",
+            "EXPORTERS_BODY",
+            "CUSTOMS_VIEWER"
+          ],
+          "title": "OrgRole",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "A milestone as stored on the ledger (chaincode adds tx_id, time and submitter).",
+      "properties": {
+        "customs_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CustomsStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ledger_time": {
+          "format": "date-time",
+          "title": "Ledger Time",
+          "type": "string"
+        },
+        "milestone": {
+          "$ref": "#/$defs/Milestone"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 280,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "occurred_on": {
+          "format": "date",
+          "title": "Occurred On",
+          "type": "string"
+        },
+        "reference_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Hash"
+        },
+        "sb_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sb Hash",
+          "type": "string"
+        },
+        "submitter_msp": {
+          "title": "Submitter Msp",
+          "type": "string"
+        },
+        "submitter_role": {
+          "$ref": "#/$defs/OrgRole"
+        },
+        "tx_id": {
+          "title": "Tx Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sb_hash",
+        "milestone",
+        "occurred_on",
+        "tx_id",
+        "ledger_time",
+        "submitter_msp",
+        "submitter_role"
+      ],
+      "title": "MilestoneEvent",
+      "type": "object"
+    },
+    "MilestoneRequest": {
+      "$defs": {
+        "CustomsStatus": {
+          "enum": [
+            "REALISED",
+            "PENDING"
+          ],
+          "title": "CustomsStatus",
+          "type": "string"
+        },
+        "Milestone": {
+          "description": "Milestones recorded per shipping bill (docs/PROBLEM.md, Part 6.3).",
+          "enum": [
+            "DOCS_ACKNOWLEDGED",
+            "PAYMENT_RECEIVED",
+            "EBRC_SELF_CERTIFIED",
+            "EDPMS_MARKED_OFF",
+            "CUSTOMS_STATUS_OBSERVED"
+          ],
+          "title": "Milestone",
+          "type": "string"
+        },
+        "OrgRole": {
+          "description": "Role of a Drunix organisation (MSP) in the pilot.",
+          "enum": [
+            "AD_BANK",
+            "EXPORTERS_BODY",
+            "CUSTOMS_VIEWER"
+          ],
+          "title": "OrgRole",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Frontend -> backend. Carries the RAW reference (IRM / eBRC number / document id);\nthe backend hashes it with the server-side salt and sends a MilestoneSubmission on.\nThe raw value is never stored or logged (FEATURES.md E9).",
+      "properties": {
+        "acting_as": {
+          "$ref": "#/$defs/OrgRole"
+        },
+        "customs_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CustomsStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "milestone": {
+          "$ref": "#/$defs/Milestone"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 280,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "occurred_on": {
+          "format": "date",
+          "title": "Occurred On",
+          "type": "string"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        }
+      },
+      "required": [
+        "milestone",
+        "occurred_on",
+        "acting_as"
+      ],
+      "title": "MilestoneRequest",
+      "type": "object"
+    },
+    "MilestoneSubmission": {
+      "$defs": {
+        "CustomsStatus": {
+          "enum": [
+            "REALISED",
+            "PENDING"
+          ],
+          "title": "CustomsStatus",
+          "type": "string"
+        },
+        "Milestone": {
+          "description": "Milestones recorded per shipping bill (docs/PROBLEM.md, Part 6.3).",
+          "enum": [
+            "DOCS_ACKNOWLEDGED",
+            "PAYMENT_RECEIVED",
+            "EBRC_SELF_CERTIFIED",
+            "EDPMS_MARKED_OFF",
+            "CUSTOMS_STATUS_OBSERVED"
+          ],
+          "title": "Milestone",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "What a client asks to record. Sent backend -> gateway -> chaincode.",
+      "properties": {
+        "customs_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CustomsStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "milestone": {
+          "$ref": "#/$defs/Milestone"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 280,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "occurred_on": {
+          "format": "date",
+          "title": "Occurred On",
+          "type": "string"
+        },
+        "reference_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Hash"
+        },
+        "sb_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sb Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sb_hash",
+        "milestone",
+        "occurred_on"
+      ],
+      "title": "MilestoneSubmission",
+      "type": "object"
+    },
+    "ShippingBillRecord": {
+      "$defs": {
+        "CustomsStatus": {
+          "enum": [
+            "REALISED",
+            "PENDING"
+          ],
+          "title": "CustomsStatus",
+          "type": "string"
+        },
+        "Milestone": {
+          "description": "Milestones recorded per shipping bill (docs/PROBLEM.md, Part 6.3).",
+          "enum": [
+            "DOCS_ACKNOWLEDGED",
+            "PAYMENT_RECEIVED",
+            "EBRC_SELF_CERTIFIED",
+            "EDPMS_MARKED_OFF",
+            "CUSTOMS_STATUS_OBSERVED"
+          ],
+          "title": "Milestone",
+          "type": "string"
+        },
+        "MilestoneEvent": {
+          "additionalProperties": false,
+          "description": "A milestone as stored on the ledger (chaincode adds tx_id, time and submitter).",
+          "properties": {
+            "customs_status": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CustomsStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "ledger_time": {
+              "format": "date-time",
+              "title": "Ledger Time",
+              "type": "string"
+            },
+            "milestone": {
+              "$ref": "#/$defs/Milestone"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "maxLength": 280,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Note"
+            },
+            "occurred_on": {
+              "format": "date",
+              "title": "Occurred On",
+              "type": "string"
+            },
+            "reference_hash": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Reference Hash"
+            },
+            "sb_hash": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sb Hash",
+              "type": "string"
+            },
+            "submitter_msp": {
+              "title": "Submitter Msp",
+              "type": "string"
+            },
+            "submitter_role": {
+              "$ref": "#/$defs/OrgRole"
+            },
+            "tx_id": {
+              "title": "Tx Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sb_hash",
+            "milestone",
+            "occurred_on",
+            "tx_id",
+            "ledger_time",
+            "submitter_msp",
+            "submitter_role"
+          ],
+          "title": "MilestoneEvent",
+          "type": "object"
+        },
+        "OrgRole": {
+          "description": "Role of a Drunix organisation (MSP) in the pilot.",
+          "enum": [
+            "AD_BANK",
+            "EXPORTERS_BODY",
+            "CUSTOMS_VIEWER"
+          ],
+          "title": "OrgRole",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "One record per shipping bill. Raw shipping-bill numbers never go on the ledger.",
+      "properties": {
+        "bank_msp": {
+          "title": "Bank Msp",
+          "type": "string"
+        },
+        "created_ledger_time": {
+          "format": "date-time",
+          "title": "Created Ledger Time",
+          "type": "string"
+        },
+        "events": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MilestoneEvent"
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "sb_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sb Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sb_hash",
+        "bank_msp",
+        "created_ledger_time"
+      ],
+      "title": "ShippingBillRecord",
+      "type": "object"
+    },
+    "TimelineView": {
+      "$defs": {
+        "CauseAssessment": {
+          "additionalProperties": false,
+          "properties": {
+            "bucket": {
+              "$ref": "#/$defs/CauseBucket"
+            },
+            "explanation": {
+              "title": "Explanation",
+              "type": "string"
+            },
+            "missing": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/Milestone"
+              },
+              "title": "Missing",
+              "type": "array"
+            }
+          },
+          "required": [
+            "bucket",
+            "explanation"
+          ],
+          "title": "CauseAssessment",
+          "type": "object"
+        },
+        "CauseBucket": {
+          "description": "Where a Customs 'pending' most likely comes from (docs/PROBLEM.md, 4.3). Heuristic [I].",
+          "enum": [
+            "CONSISTENT",
+            "NO_PAYMENT_RECORDED",
+            "EXPORTER_LINKAGE_MISSING",
+            "BANK_NOT_MARKED_OFF",
+            "DOWNSTREAM_SYNC"
+          ],
+          "title": "CauseBucket",
+          "type": "string"
+        },
+        "CustomsStatus": {
+          "enum": [
+            "REALISED",
+            "PENDING"
+          ],
+          "title": "CustomsStatus",
+          "type": "string"
+        },
+        "Milestone": {
+          "description": "Milestones recorded per shipping bill (docs/PROBLEM.md, Part 6.3).",
+          "enum": [
+            "DOCS_ACKNOWLEDGED",
+            "PAYMENT_RECEIVED",
+            "EBRC_SELF_CERTIFIED",
+            "EDPMS_MARKED_OFF",
+            "CUSTOMS_STATUS_OBSERVED"
+          ],
+          "title": "Milestone",
+          "type": "string"
+        },
+        "MilestoneEvent": {
+          "additionalProperties": false,
+          "description": "A milestone as stored on the ledger (chaincode adds tx_id, time and submitter).",
+          "properties": {
+            "customs_status": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CustomsStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "ledger_time": {
+              "format": "date-time",
+              "title": "Ledger Time",
+              "type": "string"
+            },
+            "milestone": {
+              "$ref": "#/$defs/Milestone"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "maxLength": 280,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Note"
+            },
+            "occurred_on": {
+              "format": "date",
+              "title": "Occurred On",
+              "type": "string"
+            },
+            "reference_hash": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Reference Hash"
+            },
+            "sb_hash": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sb Hash",
+              "type": "string"
+            },
+            "submitter_msp": {
+              "title": "Submitter Msp",
+              "type": "string"
+            },
+            "submitter_role": {
+              "$ref": "#/$defs/OrgRole"
+            },
+            "tx_id": {
+              "title": "Tx Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sb_hash",
+            "milestone",
+            "occurred_on",
+            "tx_id",
+            "ledger_time",
+            "submitter_msp",
+            "submitter_role"
+          ],
+          "title": "MilestoneEvent",
+          "type": "object"
+        },
+        "OrgRole": {
+          "description": "Role of a Drunix organisation (MSP) in the pilot.",
+          "enum": [
+            "AD_BANK",
+            "EXPORTERS_BODY",
+            "CUSTOMS_VIEWER"
+          ],
+          "title": "OrgRole",
+          "type": "string"
+        },
+        "ShippingBillRecord": {
+          "additionalProperties": false,
+          "description": "One record per shipping bill. Raw shipping-bill numbers never go on the ledger.",
+          "properties": {
+            "bank_msp": {
+              "title": "Bank Msp",
+              "type": "string"
+            },
+            "created_ledger_time": {
+              "format": "date-time",
+              "title": "Created Ledger Time",
+              "type": "string"
+            },
+            "events": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/MilestoneEvent"
+              },
+              "title": "Events",
+              "type": "array"
+            },
+            "sb_hash": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sb Hash",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sb_hash",
+            "bank_msp",
+            "created_ledger_time"
+          ],
+          "title": "ShippingBillRecord",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Backend -> frontend: one shipping bill's history plus the cause assessment.",
+      "properties": {
+        "assessment": {
+          "$ref": "#/$defs/CauseAssessment"
+        },
+        "record": {
+          "$ref": "#/$defs/ShippingBillRecord"
+        }
+      },
+      "required": [
+        "record",
+        "assessment"
+      ],
+      "title": "TimelineView",
+      "type": "object"
+    },
+    "TxReceipt": {
+      "additionalProperties": false,
+      "description": "Backend -> frontend after a successful write.",
+      "properties": {
+        "sb_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sb Hash",
+          "type": "string"
+        },
+        "tx_id": {
+          "title": "Tx Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sb_hash",
+        "tx_id"
+      ],
+      "title": "TxReceipt",
+      "type": "object"
+    }
+  },
+  "preconditions": {
+    "CUSTOMS_STATUS_OBSERVED": [],
+    "DOCS_ACKNOWLEDGED": [],
+    "EBRC_SELF_CERTIFIED": [
+      "PAYMENT_RECEIVED"
+    ],
+    "EDPMS_MARKED_OFF": [
+      "DOCS_ACKNOWLEDGED",
+      "PAYMENT_RECEIVED"
+    ],
+    "PAYMENT_RECEIVED": []
+  },
+  "reference_required": [
+    "DOCS_ACKNOWLEDGED",
+    "EBRC_SELF_CERTIFIED",
+    "PAYMENT_RECEIVED"
+  ],
+  "repeatable": [
+    "CUSTOMS_STATUS_OBSERVED"
+  ],
+  "writer_role": {
+    "CUSTOMS_STATUS_OBSERVED": "EXPORTERS_BODY",
+    "DOCS_ACKNOWLEDGED": "AD_BANK",
+    "EBRC_SELF_CERTIFIED": "EXPORTERS_BODY",
+    "EDPMS_MARKED_OFF": "AD_BANK",
+    "PAYMENT_RECEIVED": "AD_BANK"
+  }
+}

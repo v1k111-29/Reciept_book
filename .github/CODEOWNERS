@@ -1,0 +1,60 @@
+# Who must approve changes to which paths. Replace @P1_GITHUB ... @P5_GITHUB with real
+# GitHub usernames before the first push (REPO_SETUP.md step 3). Later rules win.
+
+*                                   @P1_GITHUB
+
+# P1: lead, contracts, governance, integration tests, docs
+/backend/s14/contracts.py           @P1_GITHUB
+/contracts/                         @P1_GITHUB
+/chaincode/src/generated/           @P1_GITHUB
+/gateway/src/generated/             @P1_GITHUB
+/frontend/src/generated/            @P1_GITHUB
+/tests/factories.py                 @P1_GITHUB
+/tests/contracts/                   @P1_GITHUB
+/tests/integration/                 @P1_GITHUB
+/scripts/                           @P1_GITHUB
+/.github/                           @P1_GITHUB
+/docs/                              @P1_GITHUB
+
+# P2: chaincode
+/chaincode/src/rules.ts             @P2_GITHUB
+/chaincode/src/receiptBook.ts       @P2_GITHUB
+/chaincode/src/index.ts             @P2_GITHUB
+/chaincode/test/                    @P2_GITHUB
+/chaincode/package.json             @P2_GITHUB
+/chaincode/package-lock.json        @P2_GITHUB
+
+# P3: gateway + Drunix network
+/gateway/src/config.ts              @P3_GITHUB
+/gateway/src/server.ts              @P3_GITHUB
+/gateway/src/main.ts                @P3_GITHUB
+/gateway/src/ledger/                @P3_GITHUB
+/gateway/test/                      @P3_GITHUB
+/gateway/package.json               @P3_GITHUB
+/gateway/package-lock.json          @P3_GITHUB
+/network/                           @P3_GITHUB
+
+# P4: Python backend
+/backend/s14/api.py                 @P4_GITHUB
+/backend/s14/gateway_client.py      @P4_GITHUB
+/backend/s14/domain/                @P4_GITHUB
+/backend/s14/seed/                  @P4_GITHUB
+/tests/backend/                     @P4_GITHUB
+/pyproject.toml                     @P4_GITHUB @P1_GITHUB
+/uv.lock                            @P4_GITHUB @P1_GITHUB
+
+# P5: frontend
+/frontend/src/App.tsx               @P5_GITHUB
+/frontend/src/api.ts                @P5_GITHUB
+/frontend/src/views/                @P5_GITHUB
+/frontend/src/components/           @P5_GITHUB
+/frontend/test/                     @P5_GITHUB
+/frontend/package.json              @P5_GITHUB
+/frontend/package-lock.json         @P5_GITHUB
+
+# Personal logs: each person owns their own file only
+/docs/logs/p1.md                    @P1_GITHUB
+/docs/logs/p2.md                    @P2_GITHUB
+/docs/logs/p3.md                    @P3_GITHUB
+/docs/logs/p4.md                    @P4_GITHUB
+/docs/logs/p5.md                    @P5_GITHUB

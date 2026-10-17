@@ -1,0 +1,10 @@
+# Copy to network/env.sh (gitignored) and edit. OWNER: P3.
+export DRUNIX_DIR="$HOME/drunix"                     # your clone of github.com/npci/drunix
+export S14_CHANNEL="receiptbook"
+export S14_CHAINCODE="receiptbook"
+# Endorsement policy: both orgs must endorse every write (decision D-05). Flag support in
+# Drunix's network.sh is unverified (docs/UNKNOWNS.md U-03).
+export S14_ENDORSEMENT_POLICY="AND('Org1MSP.peer','Org2MSP.peer')"
+# State database: the README's example uses yugabyte; issue #8 concerns SQL+Redis writes.
+# Whether another value works is U-04.
+export S14_STATE_DB="yugabyte"

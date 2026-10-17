@@ -1,0 +1,51 @@
+# CI: every suite on every PR and on pushes to develop/main. OWNER: P1.
+# Action versions: verify on the first run (docs/UNKNOWNS.md U-09).
+name: ci
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+jobs:
+  branch-rules:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: PR source and target follow docs/GIT_WORKFLOW.md
+        env:
+          HEAD: ${{ github.head_ref }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          echo "PR $HEAD -> $BASE"
+          if [[ "$BASE" == "main" ]]; then
+            [[ "$HEAD" == "develop" ]] || { echo "::error::only develop may be merged into main"; exit 1; }
+          elif [[ "$BASE" == "develop" ]]; then
+            [[ "$HEAD" =~ ^p[1-5]/ || "$HEAD" =~ ^integration/ ]] || { echo "::error::branch must be p<N>/..."; exit 1; }
+          fi
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - run: uv run pytest -q
+
+  node:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg: [chaincode, gateway, frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.pkg }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test

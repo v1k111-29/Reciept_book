@@ -1,0 +1,21 @@
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# node
+node_modules/
+dist/
+# local config and secrets: never commit
+.env
+.env.*
+network/env.sh
+*.pem
+*_sk
+organizations/
+wallet/
+# personal agent files
+CLAUDE.local.md
+.claude/settings.local.json
+# os
+.DS_Store
