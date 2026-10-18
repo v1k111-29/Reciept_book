@@ -86,6 +86,9 @@ class ErrorCode(StrEnum):
     DUPLICATE_MILESTONE = "DUPLICATE_MILESTONE"  # a non-repeatable milestone already exists
     ENDORSEMENT_FAILED = "ENDORSEMENT_FAILED"  # endorsement policy not satisfied
     LEDGER_UNAVAILABLE = "LEDGER_UNAVAILABLE"  # gateway cannot reach Drunix
+    # A submit was sent with a tx_id but its commit status is not known (e.g. timeout while
+    # waiting for it); it may still commit. Never auto-retry: check the record first (D-20).
+    OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
     INTERNAL = "INTERNAL"  # unexpected gateway or chaincode failure (fallback; keep last)
 
 
@@ -154,6 +157,13 @@ CHAINCODE_RESULT: dict[ChaincodeFunction, str] = {
     ChaincodeFunction.LIST_RECORDS: "list[ShippingBillRecord]",
 }
 
+# Functions that write: the gateway runs them only on GATEWAY_ROUTES["submit"]. All other
+# functions are reads and run only on GATEWAY_ROUTES["evaluate"]. A function on the wrong
+# route gets VALIDATION. (CCR-p3-1, D-20)
+CHAINCODE_WRITES: frozenset[ChaincodeFunction] = frozenset(
+    {ChaincodeFunction.CREATE_RECORD, ChaincodeFunction.RECORD_MILESTONE}
+)
+
 # HTTP status for a failed response, used by both the gateway (body: GatewayResult with
 # ok=false) and the backend (body: ErrorBody). Successful responses are 200. (D-18)
 ERROR_HTTP_STATUS: dict[ErrorCode, int] = {
@@ -166,6 +176,7 @@ ERROR_HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.DUPLICATE_MILESTONE: 409,
     ErrorCode.ENDORSEMENT_FAILED: 502,
     ErrorCode.LEDGER_UNAVAILABLE: 503,
+    ErrorCode.OUTCOME_UNKNOWN: 504,
     ErrorCode.INTERNAL: 500,
 }
 
@@ -314,7 +325,12 @@ class GatewayRequest(_Model):
 
 
 class GatewayResult(_Model):
-    """Gateway (P3) -> backend (P4)."""
+    """Gateway (P3) -> backend (P4).
+
+    A failed submit carries `tx_id` whenever the gateway had assigned one. OUTCOME_UNKNOWN
+    always carries it; the backend never auto-retries such a submit (a retried REPEATABLE
+    milestone would be recorded twice) and checks the record instead. (CCR-p3-2, D-20)
+    """
 
     ok: bool
     tx_id: str | None = None
@@ -327,6 +343,8 @@ class GatewayResult(_Model):
             raise ValueError("ok results carry no error")
         if not self.ok and self.error is None:
             raise ValueError("failed results must carry an error")
+        if self.error is not None and self.error.code == ErrorCode.OUTCOME_UNKNOWN and not self.tx_id:
+            raise ValueError("OUTCOME_UNKNOWN results must carry the tx_id")
         return self
 
 

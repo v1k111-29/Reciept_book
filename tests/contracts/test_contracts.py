@@ -149,3 +149,18 @@ def test_only_the_bank_creates_records():  # ISS-p1-11
 def test_every_error_code_has_an_http_status():  # ISS-p1-12
     assert set(c.ERROR_HTTP_STATUS) == set(c.ErrorCode)
     assert all(400 <= s <= 599 for s in c.ERROR_HTTP_STATUS.values())
+
+
+def test_writes_are_create_and_record_milestone():  # CCR-p3-1, D-20
+    assert c.CHAINCODE_WRITES == {c.ChaincodeFunction.CREATE_RECORD, c.ChaincodeFunction.RECORD_MILESTONE}
+    assert c.CHAINCODE_WRITES <= set(c.ChaincodeFunction)
+
+
+def test_outcome_unknown_carries_the_tx_id():  # CCR-p3-2, D-20
+    unknown = c.ErrorBody(code=c.ErrorCode.OUTCOME_UNKNOWN, message="commit status timeout")
+    assert c.GatewayResult(ok=False, tx_id="t1", error=unknown).tx_id == "t1"
+    with pytest.raises(ValidationError):
+        c.GatewayResult(ok=False, error=unknown)
+    # any other failed submit may carry the tx_id it was given
+    other = c.ErrorBody(code=c.ErrorCode.ENDORSEMENT_FAILED, message="policy")
+    assert c.GatewayResult(ok=False, tx_id="t2", error=other).tx_id == "t2"

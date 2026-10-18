@@ -25,6 +25,10 @@
     "ListRecords": "list[ShippingBillRecord]",
     "RecordMilestone": "MilestoneEvent"
   },
+  "chaincode_writes": [
+    "CreateRecord",
+    "RecordMilestone"
+  ],
   "contracts_version": "1.0.0",
   "create_record_role": "AD_BANK",
   "default_msp_roles": {
@@ -59,6 +63,7 @@
       "DUPLICATE_MILESTONE",
       "ENDORSEMENT_FAILED",
       "LEDGER_UNAVAILABLE",
+      "OUTCOME_UNKNOWN",
       "INTERNAL"
     ],
     "Milestone": [
@@ -81,6 +86,7 @@
     "INTERNAL": 500,
     "LEDGER_UNAVAILABLE": 503,
     "NOT_FOUND": 404,
+    "OUTCOME_UNKNOWN": 504,
     "PRECONDITION_FAILED": 409,
     "VALIDATION": 422,
     "WRONG_BANK": 403,
@@ -188,6 +194,7 @@
             "DUPLICATE_MILESTONE",
             "ENDORSEMENT_FAILED",
             "LEDGER_UNAVAILABLE",
+            "OUTCOME_UNKNOWN",
             "INTERNAL"
           ],
           "title": "ErrorCode",
@@ -291,6 +298,7 @@
             "DUPLICATE_MILESTONE",
             "ENDORSEMENT_FAILED",
             "LEDGER_UNAVAILABLE",
+            "OUTCOME_UNKNOWN",
             "INTERNAL"
           ],
           "title": "ErrorCode",
@@ -298,7 +306,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Gateway (P3) -> backend (P4).",
+      "description": "Gateway (P3) -> backend (P4).\n\nA failed submit carries `tx_id` whenever the gateway had assigned one. OUTCOME_UNKNOWN\nalways carries it; the backend never auto-retries such a submit (a retried REPEATABLE\nmilestone would be recorded twice) and checks the record instead. (CCR-p3-2, D-20)",
       "properties": {
         "error": {
           "anyOf": [

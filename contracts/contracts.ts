@@ -57,6 +57,7 @@ export const ErrorCode = {
   DUPLICATE_MILESTONE: "DUPLICATE_MILESTONE",
   ENDORSEMENT_FAILED: "ENDORSEMENT_FAILED",
   LEDGER_UNAVAILABLE: "LEDGER_UNAVAILABLE",
+  OUTCOME_UNKNOWN: "OUTCOME_UNKNOWN", // submit sent with a tx_id, commit status unknown; never auto-retry
   INTERNAL: "INTERNAL", // unexpected gateway or chaincode failure (fallback; keep last)
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -108,6 +109,9 @@ export const CHAINCODE_RESULT: Record<ChaincodeFunction, string> = {
   ListRecords: "list[ShippingBillRecord]",
 };
 
+/** Write functions: /submit only. All others are reads: /evaluate only. Wrong route -> VALIDATION. */
+export const CHAINCODE_WRITES: readonly ChaincodeFunction[] = ["CreateRecord", "RecordMilestone"];
+
 /** HTTP status of a failed gateway or backend response; success is 200 (D-18). */
 export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   VALIDATION: 422,
@@ -119,6 +123,7 @@ export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   DUPLICATE_MILESTONE: 409,
   ENDORSEMENT_FAILED: 502,
   LEDGER_UNAVAILABLE: 503,
+  OUTCOME_UNKNOWN: 504,
   INTERNAL: 500,
 };
 
@@ -214,7 +219,7 @@ export interface GatewayRequest {
 
 export interface GatewayResult {
   ok: boolean;
-  tx_id?: string | null;
+  tx_id?: string | null; // also on a failed submit when one was assigned; required for OUTCOME_UNKNOWN
   payload?: unknown; // parsed JSON of CHAINCODE_RESULT[function], never a JSON string
   error?: ErrorBody | null;
 }
