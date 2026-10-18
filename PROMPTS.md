@@ -40,8 +40,8 @@ Read backend/s14/contracts.py in full. I own it, so check it as the author: ever
 IMPLEMENTATION_PLAN.md must match a real type or constant, every rule in WRITER_ROLE and PRECONDITIONS
 must cite its source or say [I], and contracts/contracts.ts must say the same thing. List anything
 unclear, wrong or missing now, before the G1 freeze, not after.
-Check .github/CODEOWNERS has no @P*_GITHUB placeholders left and that branch protection on main and
-develop matches REPO_SETUP.md step 3.
+Check .github/CODEOWNERS has no @P*_GITHUB placeholders left and that the ruleset on develop
+matches REPO_SETUP.md step 3.
 Run: uv sync && uv run pytest (expect 26 passed, 2 skipped, 16 xfailed).
 Run: bash scripts/check_all.sh (expect chaincode 11 passed; gateway 4 passed, 5 todo; frontend
 2 passed, 9 todo; and "all suites green").
@@ -260,12 +260,15 @@ gh pr diff --name-only against Part 2.2 of IMPLEMENTATION_PLAN.md), the checklis
 author's log has this session's entry. Report any PR that fails a check and why. Don't merge it.
 </verify>
 <task>
-Merge the PRs that pass, one at a time, with a merge commit. After EACH merge: git pull &&
-bash scripts/check_all.sh. If develop goes red, git revert -m 1 the merge, push, and stop merging.
-Never edit a member's code to make it merge; send it back.
+Merge the PRs that pass, one at a time, with a merge commit (gh pr merge <n> --merge; --admin only
+for my own PRs). After EACH merge: git pull && bash scripts/check_all.sh. If develop goes red, stop
+merging and revert through a PR as in docs/GIT_WORKFLOW.md (branch p1/revert-pr<n>, git revert -m 1,
+PR into develop). Never push to develop directly. Never edit a member's code to make it merge; send it
+back.
 </task>
 <log>
-Append a merge-window entry to docs/logs/INTEGRATION_LOG.md: time, each PR (merged / sent back / reverted,
+On a p1/... branch off origin/develop, append a merge-window entry to docs/logs/INTEGRATION_LOG.md
+and open a PR into develop for it: time, each PR (merged / sent back / reverted,
 and why), the develop SHA and suite counts after each merge, open conflicts, missing dependencies and
 contract requests across the team, with their IDs.
 </log>
@@ -279,7 +282,8 @@ whom, and what blocks the current gate.
 
 ```
 <orient>
-git checkout develop && git pull. Confirm I'm on develop and that s14.id is p1.
+git checkout develop && git pull --ff-only. Confirm I'm on develop and that s14.id is p1. Note the
+develop SHA (git rev-parse HEAD): it is the SHA I verify and tag.
 </orient>
 <verify>
 For gate {GATE}, go through every "Accept when" row in Part 3 of IMPLEMENTATION_PLAN.md (and the
@@ -289,8 +293,10 @@ machine. Mark each row met / not met. Don't round up.
 </verify>
 <report>
 Report plainly: is {GATE} met, yes or not-yet, with the unmet rows listed. If yes and only then:
-git checkout main && git pull && git merge --no-ff develop -m "Gate {GATE} close", git tag
-{GATE_TAG}, git push origin main --tags, and append a gate-close entry to docs/logs/INTEGRATION_LOG.md.
+append a gate-close entry (with the verified SHA) to docs/logs/INTEGRATION_LOG.md on a p1/... branch
+and open a PR into develop for it. Ask me before tagging. On my yes:
+git tag -a {GATE_TAG} <verified-sha> -m "Gate {GATE} close" and git push origin {GATE_TAG}.
+Gates close with a tag on develop; main is retired (D-16): never push to it or open a PR into it.
 </report>
 ```
 

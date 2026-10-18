@@ -66,7 +66,7 @@ Node/TypeScript gateway [S]. The gateway is kept deliberately thin: no business 
 | **G1** | Contracts frozen + network up | Contracts v1.0.0 tagged; Drunix network runs on the host machine; stub chaincode deploys; U-02 to U-05 and U-07 answered | Day 1-3 |
 | **G2** | Vertical slice | Create record + PAYMENT_RECEIVED from the UI, through backend, gateway and chaincode, on real Drunix, and read back | Day 4-7 |
 | **G3** | Essential features | E1 to E10 of `FEATURES.md` pass, including the endorsement negative test | Day 8-11 |
-| **G4** | Demo freeze | Seeded demo runs from a clean clone; docs updated; `develop` merged to `main` and tagged `v1.0.0` | Day 12-13 |
+| **G4** | Demo freeze | Seeded demo runs from a clean clone; docs updated; `develop` tagged `v1.0.0` (no `main`, D-16) | Day 12-13 |
 
 \* Days from G0. Map them to real dates only after the organisers confirm the timeline
 (`docs/UNKNOWNS.md` U-01). Project Axis's README shows a prototype build window of
@@ -80,7 +80,7 @@ Node/TypeScript gateway [S]. The gateway is kept deliberately thin: no business 
 
 | Id | Slice | Branch prefix | Typical agent use |
 |---|---|---|---|
-| **p1** | **Lead + integrator**: contracts, CI, repo rules, integration tests, demo script, docs, all merges | `p1/` (+ only p1 touches `develop`, `main`, `integration/*`, tags) | Review, contract diffs, integration debugging |
+| **p1** | **Lead + integrator**: contracts, CI, repo rules, integration tests, demo script, docs, all merges | `p1/` (+ only p1 touches `develop`, `integration/*`, tags; `main` is retired, D-16) | Review, contract diffs, integration debugging |
 | **p2** | Chaincode on Drunix (TypeScript) | `p2/` | Rules + state + events |
 | **p3** | Gateway (TypeScript) + Drunix network ops | `p3/` | Network scripts, Fabric Gateway client, error mapping |
 | **p4** | Python backend (FastAPI): hashing, gateway client, routes, assessment, metrics, seed data | `p4/` | Domain logic + API |
@@ -140,7 +140,7 @@ your branch and the lead has merged it.
 
 | ID | Owner | Task | Accept when |
 |---|---|---|---|
-| P1-G0-T1 | p1 | Create the GitHub repo from this folder (`REPO_SETUP.md`), set branch protection and CODEOWNERS usernames | `main` + `develop` exist; a member's test push to `develop` is rejected |
+| P1-G0-T1 | p1 | Create the GitHub repo from this folder (`REPO_SETUP.md`), set branch protection and CODEOWNERS usernames | `develop` exists and is the default branch; a member's test push to `develop` is rejected |
 | P*-G0-T2 | all | Run the G0 kickoff prompt (`PROMPTS.md`) | report committed to own log via PR `p<n>/g0-report` |
 | P1-G0-T3 | p1 | Collect the five reports; list contract concerns | `INTEGRATION_LOG.md` G0 entry; G0 declared or not |
 
@@ -186,7 +186,7 @@ your branch and the lead has merged it.
 | ID | Owner | Task | Accept when |
 |---|---|---|---|
 | P1-G4-T1 | p1 | `scripts/demo.sh`: clean network → deploy → seed → open UI | runs from a fresh clone on the host machine |
-| P1-G4-T2 | p1 | Merge `develop` → `main`, tag `v1.0.0`, freeze | tag exists; `INTEGRATION_LOG.md` closing entry |
+| P1-G4-T2 | p1 | Tag the verified `develop` SHA `v1.0.0` and freeze (`docs/GIT_WORKFLOW.md`, gate close) | tag exists on `develop`; `INTEGRATION_LOG.md` closing entry |
 | P2..P5-G4-T1 | each | Fix-only work on demo blockers; README section for own slice | lead's go/no-go |
 
 Non-essential features (N1-N10) start only after G3 is declared, in the order in `FEATURES.md`.
