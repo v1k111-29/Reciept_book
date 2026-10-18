@@ -2,11 +2,11 @@
 
 | Id | Name (lead fills in) | Log file |
 |---|---|---|
-| p1 (lead) | `<NAME>` | `p1.md` + `INTEGRATION_LOG.md` (lead only) |
-| p2 | `<NAME>` | `p2.md` |
-| p3 | `<NAME>` | `p3.md` |
-| p4 | `<NAME>` | `p4.md` |
-| p5 | `<NAME>` | `p5.md` |
+| p1 (lead) | `@v1k111-29` | `p1.md` + `INTEGRATION_LOG.md` (lead only) |
+| p2 | _not yet assigned_ | `p2.md` |
+| p3 | `@vishalbala-nps` | `p3.md` |
+| p4 | `@raghavvenkatraman` | `p4.md` |
+| p5 | _not yet assigned_ | `p5.md` |
 
 **Rules:** write only your own file; append, never rewrite history; one entry per session;
 log a problem the moment you find it. Give every item an ID so others can refer to it:
