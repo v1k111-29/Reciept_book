@@ -56,5 +56,7 @@ peer channel getinfo -c receiptbook
 G1 questions (docs/UNKNOWNS.md), status 18 Oct 2026 (evidence in docs/logs/p3.md):
 - U-02 (which peer serves the Fabric Gateway API): answered. Both peer types do.
 - U-03 (`-ccep` and `-ccl typescript`): answered. Both work, with the node runtime workaround above.
-- U-04 (another state DB): open. The compose files hard-code sqldb/YugabyteDB for every peer.
+- U-04 (another state DB): decided, **keep YugabyteDB** (Drunix's default; the compose files hard-code
+  sqldb/YugabyteDB for every peer). Whether another DB works is untested; revisit only if Drunix
+  issue #8 shows up as flaky commits.
 - U-05 (`-c receiptbook`): answered. It works.
