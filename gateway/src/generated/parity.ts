@@ -14,6 +14,10 @@ type Schema = {
   repeatable: string[];
   reference_required: string[];
   default_msp_roles: Record<string, string>;
+  create_record_role: string;
+  chaincode_args: Record<string, string[]>;
+  chaincode_result: Record<string, string>;
+  error_http_status: Record<string, number>;
   backend_routes: Record<string, string>;
   gateway_routes: Record<string, string>;
   models: Record<string, { properties: Record<string, unknown> }>;
@@ -46,6 +50,10 @@ export function parityProblems(schema: Schema): string[] {
   eq("repeatable", [...C.REPEATABLE].sort(), schema.repeatable);
   eq("reference_required", [...C.REFERENCE_REQUIRED].sort(), schema.reference_required);
   eq("default_msp_roles", C.DEFAULT_MSP_ROLES, schema.default_msp_roles);
+  eq("create_record_role", C.CREATE_RECORD_ROLE, schema.create_record_role);
+  eq("chaincode_args", C.CHAINCODE_ARGS, schema.chaincode_args);
+  eq("chaincode_result", C.CHAINCODE_RESULT, schema.chaincode_result);
+  eq("error_http_status", C.ERROR_HTTP_STATUS, schema.error_http_status);
   eq("backend_routes", C.BACKEND_ROUTES, schema.backend_routes);
   eq("gateway_routes", C.GATEWAY_ROUTES, schema.gateway_routes);
   for (const [model, def] of Object.entries(schema.models)) {

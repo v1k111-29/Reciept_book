@@ -7,7 +7,26 @@
     "metrics": "GET /metrics",
     "record_milestone": "POST /records/{sb_hash}/milestones"
   },
-  "contracts_version": "0.2.0",
+  "chaincode_args": {
+    "CreateRecord": [
+      "sb_hash"
+    ],
+    "GetRecord": [
+      "sb_hash"
+    ],
+    "ListRecords": [],
+    "RecordMilestone": [
+      "MilestoneSubmission"
+    ]
+  },
+  "chaincode_result": {
+    "CreateRecord": "ShippingBillRecord",
+    "GetRecord": "ShippingBillRecord",
+    "ListRecords": "list[ShippingBillRecord]",
+    "RecordMilestone": "MilestoneEvent"
+  },
+  "contracts_version": "0.3.0",
+  "create_record_role": "AD_BANK",
   "default_msp_roles": {
     "Org1MSP": "AD_BANK",
     "Org2MSP": "EXPORTERS_BODY"
@@ -54,6 +73,18 @@
       "EXPORTERS_BODY",
       "CUSTOMS_VIEWER"
     ]
+  },
+  "error_http_status": {
+    "ALREADY_EXISTS": 409,
+    "DUPLICATE_MILESTONE": 409,
+    "ENDORSEMENT_FAILED": 502,
+    "INTERNAL": 500,
+    "LEDGER_UNAVAILABLE": 503,
+    "NOT_FOUND": 404,
+    "PRECONDITION_FAILED": 409,
+    "VALIDATION": 422,
+    "WRONG_BANK": 403,
+    "WRONG_ROLE": 403
   },
   "gateway_routes": {
     "evaluate": "POST /evaluate",

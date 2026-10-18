@@ -24,7 +24,7 @@ from typing import Any
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-CONTRACTS_VERSION = "0.2.0"
+CONTRACTS_VERSION = "0.3.0"
 
 # A SHA-256 hex digest: 64 lowercase hex characters.
 HASH_PATTERN = r"^[0-9a-f]{64}$"
@@ -97,7 +97,7 @@ WRITER_ROLE: dict[Milestone, OrgRole] = {
     Milestone.PAYMENT_RECEIVED: OrgRole.AD_BANK,  # the bank receives the IRM (PROBLEM 6.3) [I]
     Milestone.EBRC_SELF_CERTIFIED: OrgRole.EXPORTERS_BODY,  # "signed by the exporter's side" (PROBLEM 6.3) [I]
     Milestone.EDPMS_MARKED_OFF: OrgRole.AD_BANK,  # only the record's own bank [I]
-    Milestone.CUSTOMS_STATUS_OBSERVED: OrgRole.EXPORTERS_BODY,  # until Customs joins (N3)
+    Milestone.CUSTOMS_STATUS_OBSERVED: OrgRole.EXPORTERS_BODY,  # until Customs joins (N3) [I]
 }
 
 # Milestones that must already be on the record before this one is accepted.
@@ -125,6 +125,47 @@ REFERENCE_REQUIRED: frozenset[Milestone] = frozenset(
 DEFAULT_MSP_ROLES: dict[str, OrgRole] = {
     "Org1MSP": OrgRole.AD_BANK,
     "Org2MSP": OrgRole.EXPORTERS_BODY,
+}
+
+# Only this role may call CreateRecord; any other role gets WRONG_ROLE. The creating MSP
+# becomes the record's bank_msp. RecordMilestone or GetRecord on a missing record gets
+# NOT_FOUND. [I] (D-18)
+CREATE_RECORD_ROLE: OrgRole = OrgRole.AD_BANK
+
+
+# --------------------------------------------------------------- chaincode interface
+
+# Arguments of each chaincode function, in order. Every argument is a string on the wire;
+# "MilestoneSubmission" means that model serialised as JSON. (D-18)
+CHAINCODE_ARGS: dict[ChaincodeFunction, tuple[str, ...]] = {
+    ChaincodeFunction.CREATE_RECORD: ("sb_hash",),
+    ChaincodeFunction.RECORD_MILESTONE: ("MilestoneSubmission",),
+    ChaincodeFunction.GET_RECORD: ("sb_hash",),
+    ChaincodeFunction.LIST_RECORDS: (),
+}
+
+# What each function returns. The chaincode returns it as JSON; the gateway parses it, so
+# GatewayResult.payload is this shape as parsed JSON, never a JSON string. (D-18)
+CHAINCODE_RESULT: dict[ChaincodeFunction, str] = {
+    ChaincodeFunction.CREATE_RECORD: "ShippingBillRecord",
+    ChaincodeFunction.RECORD_MILESTONE: "MilestoneEvent",
+    ChaincodeFunction.GET_RECORD: "ShippingBillRecord",
+    ChaincodeFunction.LIST_RECORDS: "list[ShippingBillRecord]",
+}
+
+# HTTP status for a failed response, used by both the gateway (body: GatewayResult with
+# ok=false) and the backend (body: ErrorBody). Successful responses are 200. (D-18)
+ERROR_HTTP_STATUS: dict[ErrorCode, int] = {
+    ErrorCode.VALIDATION: 422,
+    ErrorCode.NOT_FOUND: 404,
+    ErrorCode.ALREADY_EXISTS: 409,
+    ErrorCode.WRONG_ROLE: 403,
+    ErrorCode.WRONG_BANK: 403,
+    ErrorCode.PRECONDITION_FAILED: 409,
+    ErrorCode.DUPLICATE_MILESTONE: 409,
+    ErrorCode.ENDORSEMENT_FAILED: 502,
+    ErrorCode.LEDGER_UNAVAILABLE: 503,
+    ErrorCode.INTERNAL: 500,
 }
 
 
@@ -276,7 +317,7 @@ class GatewayResult(_Model):
 
     ok: bool
     tx_id: str | None = None
-    payload: Any = None
+    payload: Any = None  # parsed JSON of CHAINCODE_RESULT[function], never a JSON string
     error: ErrorBody | None = None
 
     @model_validator(mode="after")

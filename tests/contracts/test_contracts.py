@@ -132,3 +132,20 @@ def test_ledger_times_need_a_timezone():
 
 def test_internal_is_the_last_error_code():  # fallback for unexpected failures
     assert list(c.ErrorCode)[-1] is c.ErrorCode.INTERNAL
+
+
+def test_every_chaincode_function_has_args_and_a_result():  # D-18
+    assert set(c.CHAINCODE_ARGS) == set(c.ChaincodeFunction)
+    assert set(c.CHAINCODE_RESULT) == set(c.ChaincodeFunction)
+    models = {m.__name__ for m in c.SCHEMA_MODELS}
+    for result in c.CHAINCODE_RESULT.values():
+        assert result.removeprefix("list[").removesuffix("]") in models
+
+
+def test_only_the_bank_creates_records():  # ISS-p1-11
+    assert c.CREATE_RECORD_ROLE is c.OrgRole.AD_BANK
+
+
+def test_every_error_code_has_an_http_status():  # ISS-p1-12
+    assert set(c.ERROR_HTTP_STATUS) == set(c.ErrorCode)
+    assert all(400 <= s <= 599 for s in c.ERROR_HTTP_STATUS.values())

@@ -112,10 +112,10 @@ New files go under a folder you own. Need a file somewhere else? Ask the lead fi
 | Id | Input (consumes) | Output (produces) | Rules / constants used |
 |---|---|---|---|
 | **p1** | everything (owns it) | `contracts.py`, `contracts.schema.json`, `contracts.ts` | all |
-| **p2** | `MilestoneSubmission` (JSON arg of `RecordMilestone`), `sb_hash` string (`CreateRecord`, `GetRecord`) | `ShippingBillRecord`, `MilestoneEvent` (JSON results); errors as `"<ErrorCode>: message"` | `ChaincodeFunction`, `WRITER_ROLE`, `PRECONDITIONS`, `REPEATABLE`, `REFERENCE_REQUIRED`, `DEFAULT_MSP_ROLES`, `HASH_PATTERN`, `ErrorCode` |
-| **p3** | `GatewayRequest` (from p4); chaincode results and error strings (from p2) | `GatewayResult`, `ErrorBody` | `GATEWAY_ROUTES`, `ChaincodeFunction`, `OrgRole` (identity choice), `DEFAULT_MSP_ROLES`, `ErrorCode` mapping |
-| **p4** | `CreateRecordRequest`, `MilestoneRequest` (from p5); `GatewayResult` with `ShippingBillRecord` payloads (from p3) | `TxReceipt`, `TimelineView`, `CauseAssessment`, `MetricsSummary`, `ErrorBody`; `MilestoneSubmission` + `GatewayRequest` (to p3) | `BACKEND_ROUTES`, `CauseBucket`, `REFERENCE_REQUIRED`, `WRITER_ROLE` (to pick identity), `HASH_PATTERN` |
-| **p5** | `TxReceipt`, `TimelineView`, `CauseAssessment`, `MetricsSummary`, `ErrorBody` (from p4) | `CreateRecordRequest`, `MilestoneRequest` (to p4) | `BACKEND_ROUTES`, `Milestone`, `WRITER_ROLE` (which buttons each desk shows), `CustomsStatus`, `CauseBucket` |
+| **p2** | `MilestoneSubmission` (JSON arg of `RecordMilestone`), `sb_hash` string (`CreateRecord`, `GetRecord`) | `ShippingBillRecord`, `MilestoneEvent` (JSON results); errors as `"<ErrorCode>: message"` | `ChaincodeFunction`, `WRITER_ROLE`, `PRECONDITIONS`, `REPEATABLE`, `REFERENCE_REQUIRED`, `DEFAULT_MSP_ROLES`, `HASH_PATTERN`, `ErrorCode`, `CREATE_RECORD_ROLE`, `CHAINCODE_ARGS`, `CHAINCODE_RESULT` |
+| **p3** | `GatewayRequest` (from p4); chaincode results and error strings (from p2) | `GatewayResult`, `ErrorBody` | `GATEWAY_ROUTES`, `ChaincodeFunction`, `OrgRole` (identity choice), `DEFAULT_MSP_ROLES`, `ErrorCode` mapping, `CHAINCODE_ARGS`, `CHAINCODE_RESULT` (payload is parsed JSON), `ERROR_HTTP_STATUS` |
+| **p4** | `CreateRecordRequest`, `MilestoneRequest` (from p5); `GatewayResult` with `ShippingBillRecord` payloads (from p3) | `TxReceipt`, `TimelineView`, `CauseAssessment`, `MetricsSummary`, `ErrorBody`; `MilestoneSubmission` + `GatewayRequest` (to p3) | `BACKEND_ROUTES`, `CauseBucket`, `REFERENCE_REQUIRED`, `WRITER_ROLE` (to pick identity), `HASH_PATTERN`, `CHAINCODE_ARGS`, `ERROR_HTTP_STATUS` |
+| **p5** | `TxReceipt`, `TimelineView`, `CauseAssessment`, `MetricsSummary`, `ErrorBody` (from p4) | `CreateRecordRequest`, `MilestoneRequest` (to p4) | `BACKEND_ROUTES`, `Milestone`, `WRITER_ROLE` (which buttons each desk shows), `CustomsStatus`, `CauseBucket`, `ERROR_HTTP_STATUS` |
 
 ### 2.4 Stand-ins while you wait for someone else
 
