@@ -8,7 +8,7 @@
  * mismatch between Python and TypeScript turns a test red.
  */
 
-export const CONTRACTS_VERSION = "0.2.0";
+export const CONTRACTS_VERSION = "0.3.0";
 export const HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 export const OrgRole = {
@@ -87,6 +87,39 @@ export const REFERENCE_REQUIRED: readonly Milestone[] = [
 export const DEFAULT_MSP_ROLES: Record<string, OrgRole> = {
   Org1MSP: "AD_BANK",
   Org2MSP: "EXPORTERS_BODY",
+};
+
+/** Only this role may call CreateRecord (else WRONG_ROLE); missing record -> NOT_FOUND (D-18). */
+export const CREATE_RECORD_ROLE: OrgRole = "AD_BANK";
+
+/** Arguments per chaincode function, in order; all strings ("MilestoneSubmission" = that model as JSON). */
+export const CHAINCODE_ARGS: Record<ChaincodeFunction, readonly string[]> = {
+  CreateRecord: ["sb_hash"],
+  RecordMilestone: ["MilestoneSubmission"],
+  GetRecord: ["sb_hash"],
+  ListRecords: [],
+};
+
+/** Result per function; GatewayResult.payload is this shape as parsed JSON, never a JSON string. */
+export const CHAINCODE_RESULT: Record<ChaincodeFunction, string> = {
+  CreateRecord: "ShippingBillRecord",
+  RecordMilestone: "MilestoneEvent",
+  GetRecord: "ShippingBillRecord",
+  ListRecords: "list[ShippingBillRecord]",
+};
+
+/** HTTP status of a failed gateway or backend response; success is 200 (D-18). */
+export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
+  VALIDATION: 422,
+  NOT_FOUND: 404,
+  ALREADY_EXISTS: 409,
+  WRONG_ROLE: 403,
+  WRONG_BANK: 403,
+  PRECONDITION_FAILED: 409,
+  DUPLICATE_MILESTONE: 409,
+  ENDORSEMENT_FAILED: 502,
+  LEDGER_UNAVAILABLE: 503,
+  INTERNAL: 500,
 };
 
 export const BACKEND_ROUTES = {
@@ -182,7 +215,7 @@ export interface GatewayRequest {
 export interface GatewayResult {
   ok: boolean;
   tx_id?: string | null;
-  payload?: unknown;
+  payload?: unknown; // parsed JSON of CHAINCODE_RESULT[function], never a JSON string
   error?: ErrorBody | null;
 }
 
