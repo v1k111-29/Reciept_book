@@ -22,38 +22,38 @@ const code = (fn: () => void) => { try { fn(); return "OK"; } catch (e) { return
 const R = DEFAULT_MSP_ROLES;
 
 describe("checkMilestone (P2, G2)", () => {
-  it.fails("accepts a bank recording payment", () => {
+  it("accepts a bank recording payment", () => {
     expect(code(() => checkMilestone(rec(), sub({}), "Org1MSP", R))).toBe("OK");
   });
-  it.fails("rejects the exporters' body recording payment (WRONG_ROLE)", () => {
+  it("rejects the exporters' body recording payment (WRONG_ROLE)", () => {
     expect(code(() => checkMilestone(rec(), sub({}), "Org2MSP", R))).toBe("WRONG_ROLE");
   });
-  it.fails("rejects another bank writing to this record (WRONG_BANK)", () => {
+  it("rejects another bank writing to this record (WRONG_BANK)", () => {
     expect(code(() => checkMilestone(rec(), sub({}), "Org3MSP", { ...R, Org3MSP: "AD_BANK" }))).toBe("WRONG_BANK");
   });
-  it.fails("rejects eBRC before payment (PRECONDITION_FAILED)", () => {
+  it("rejects eBRC before payment (PRECONDITION_FAILED)", () => {
     expect(code(() => checkMilestone(rec(), sub({ milestone: "EBRC_SELF_CERTIFIED" }), "Org2MSP", R)))
       .toBe("PRECONDITION_FAILED");
   });
-  it.fails("rejects mark-off without documents acknowledged", () => {
+  it("rejects mark-off without documents acknowledged", () => {
     const r = rec([{ milestone: "PAYMENT_RECEIVED" }]);
     expect(code(() => checkMilestone(r, sub({ milestone: "EDPMS_MARKED_OFF", reference_hash: null }), "Org1MSP", R)))
       .toBe("PRECONDITION_FAILED");
   });
-  it.fails("rejects a second payment milestone (DUPLICATE_MILESTONE)", () => {
+  it("rejects a second payment milestone (DUPLICATE_MILESTONE)", () => {
     expect(code(() => checkMilestone(rec([{ milestone: "PAYMENT_RECEIVED" }]), sub({}), "Org1MSP", R)))
       .toBe("DUPLICATE_MILESTONE");
   });
-  it.fails("allows repeated Customs observations", () => {
+  it("allows repeated Customs observations", () => {
     const obs = { milestone: "CUSTOMS_STATUS_OBSERVED" as const, customs_status: "PENDING" as const,
       submitter_msp: "Org2MSP", submitter_role: "EXPORTERS_BODY" as const };
     const s = sub({ milestone: "CUSTOMS_STATUS_OBSERVED", reference_hash: null, customs_status: "REALISED" });
     expect(code(() => checkMilestone(rec([obs]), s, "Org2MSP", R))).toBe("OK");
   });
-  it.fails("rejects a submission for a different sb_hash (VALIDATION)", () => {
+  it("rejects a submission for a different sb_hash (VALIDATION)", () => {
     expect(code(() => checkMilestone(rec(), sub({ sb_hash: "c".repeat(64) }), "Org1MSP", R))).toBe("VALIDATION");
   });
-  it.fails("rejects a missing reference_hash where required (VALIDATION)", () => {
+  it("rejects a missing reference_hash where required (VALIDATION)", () => {
     expect(code(() => checkMilestone(rec(), sub({ reference_hash: null }), "Org1MSP", R))).toBe("VALIDATION");
   });
 });
