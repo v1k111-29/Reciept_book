@@ -49,3 +49,19 @@ tracks. Newest last.
   due 21 Oct, p1).
 - Gate status: G0 not met: P1-G0-T1 needs the step 5 push test; P*-G0-T2 reports from p3, p4
   (p2, p5 unassigned); P1-G0-T3 waits on them.
+
+### 2026-10-18 15:47 | merge window 2 | develop before fdc31d4
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #8 p1/g1-contracts-review | p1 | merged (lead bypass) | 5f133a9 | py 29/13s/16x / cc 11 / gw 4+5todo / fe 2+9todo |
+- `gh pr merge 8 --merge --admin` after CI on the PR was green (5/5 checks); branch was current
+  with develop fdc31d4. Then `bash scripts/check_all.sh` on develop 5f133a9: "all suites green".
+- Contracts now 0.2.0 (D-17). New expected Python count on develop: 29 passed, 13 skipped,
+  16 xfailed (3 new contract tests); PROMPTS.md and docs/logs/README.md updated in this log PR.
+- Teammates: rebase on develop 5f133a9; parity tests show the contract change. Requests:
+  REQ-p1-21 (p3, INTERNAL fallback), REQ-p1-22 (p4, no `note`, aware times), REQ-p1-23 (p5, no `note`).
+- Contract concerns: ISS-p1-9, ISS-p1-10 resolved; ISS-p1-8 partly (CUSTOMS_STATUS_OBSERVED row
+  untagged); still open before the freeze: ISS-p1-7 (payload form), ISS-p1-11 (error codes for
+  CreateRecord by a non-bank and RecordMilestone on a missing record), ISS-p1-12 (HTTP status),
+  chaincode args per function.
+- Gate status: G0 still not met (push test, p3/p4 reports); G1 freeze blocked on the open items above.
