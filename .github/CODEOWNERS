@@ -1,60 +1,62 @@
-# Who must approve changes to which paths. Replace @P1_GITHUB ... @P5_GITHUB with real
-# GitHub usernames before the first push (REPO_SETUP.md step 3). Later rules win.
+# Who must approve changes to which paths. Later rules win.
+# p1 = @v1k111-29 (lead), p3 = @vishalbala-nps, p4 = @raghavvenkatraman.
+# p2 and p5 have no GitHub user yet: the lead owns their paths until they join
+# (docs/logs/p1.md ISS-p1-18). Swap @v1k111-29 for their usernames in the P2 and P5 blocks then.
 
-*                                   @P1_GITHUB
+*                                   @v1k111-29
 
 # P1: lead, contracts, governance, integration tests, docs
-/backend/s14/contracts.py           @P1_GITHUB
-/contracts/                         @P1_GITHUB
-/chaincode/src/generated/           @P1_GITHUB
-/gateway/src/generated/             @P1_GITHUB
-/frontend/src/generated/            @P1_GITHUB
-/tests/factories.py                 @P1_GITHUB
-/tests/contracts/                   @P1_GITHUB
-/tests/integration/                 @P1_GITHUB
-/scripts/                           @P1_GITHUB
-/.github/                           @P1_GITHUB
-/docs/                              @P1_GITHUB
+/backend/s14/contracts.py           @v1k111-29
+/contracts/                         @v1k111-29
+/chaincode/src/generated/           @v1k111-29
+/gateway/src/generated/             @v1k111-29
+/frontend/src/generated/            @v1k111-29
+/tests/factories.py                 @v1k111-29
+/tests/contracts/                   @v1k111-29
+/tests/integration/                 @v1k111-29
+/scripts/                           @v1k111-29
+/.github/                           @v1k111-29
+/docs/                              @v1k111-29
 
 # P2: chaincode
-/chaincode/src/rules.ts             @P2_GITHUB
-/chaincode/src/receiptBook.ts       @P2_GITHUB
-/chaincode/src/index.ts             @P2_GITHUB
-/chaincode/test/                    @P2_GITHUB
-/chaincode/package.json             @P2_GITHUB
-/chaincode/package-lock.json        @P2_GITHUB
+/chaincode/src/rules.ts             @v1k111-29
+/chaincode/src/receiptBook.ts       @v1k111-29
+/chaincode/src/index.ts             @v1k111-29
+/chaincode/test/                    @v1k111-29
+/chaincode/package.json             @v1k111-29
+/chaincode/package-lock.json        @v1k111-29
 
 # P3: gateway + Drunix network
-/gateway/src/config.ts              @P3_GITHUB
-/gateway/src/server.ts              @P3_GITHUB
-/gateway/src/main.ts                @P3_GITHUB
-/gateway/src/ledger/                @P3_GITHUB
-/gateway/test/                      @P3_GITHUB
-/gateway/package.json               @P3_GITHUB
-/gateway/package-lock.json          @P3_GITHUB
-/network/                           @P3_GITHUB
+/gateway/src/config.ts              @vishalbala-nps
+/gateway/src/server.ts              @vishalbala-nps
+/gateway/src/main.ts                @vishalbala-nps
+/gateway/src/ledger/                @vishalbala-nps
+/gateway/test/                      @vishalbala-nps
+/gateway/package.json               @vishalbala-nps
+/gateway/package-lock.json          @vishalbala-nps
+/network/                           @vishalbala-nps
 
 # P4: Python backend
-/backend/s14/api.py                 @P4_GITHUB
-/backend/s14/gateway_client.py      @P4_GITHUB
-/backend/s14/domain/                @P4_GITHUB
-/backend/s14/seed/                  @P4_GITHUB
-/tests/backend/                     @P4_GITHUB
-/pyproject.toml                     @P4_GITHUB @P1_GITHUB
-/uv.lock                            @P4_GITHUB @P1_GITHUB
+/backend/s14/api.py                 @raghavvenkatraman
+/backend/s14/gateway_client.py      @raghavvenkatraman
+/backend/s14/domain/                @raghavvenkatraman
+/backend/s14/seed/                  @raghavvenkatraman
+/tests/backend/                     @raghavvenkatraman
+/pyproject.toml                     @raghavvenkatraman @v1k111-29
+/uv.lock                            @raghavvenkatraman @v1k111-29
 
 # P5: frontend
-/frontend/src/App.tsx               @P5_GITHUB
-/frontend/src/api.ts                @P5_GITHUB
-/frontend/src/views/                @P5_GITHUB
-/frontend/src/components/           @P5_GITHUB
-/frontend/test/                     @P5_GITHUB
-/frontend/package.json              @P5_GITHUB
-/frontend/package-lock.json         @P5_GITHUB
+/frontend/src/App.tsx               @v1k111-29
+/frontend/src/api.ts                @v1k111-29
+/frontend/src/views/                @v1k111-29
+/frontend/src/components/           @v1k111-29
+/frontend/test/                     @v1k111-29
+/frontend/package.json              @v1k111-29
+/frontend/package-lock.json         @v1k111-29
 
 # Personal logs: each person owns their own file only
-/docs/logs/p1.md                    @P1_GITHUB
-/docs/logs/p2.md                    @P2_GITHUB
-/docs/logs/p3.md                    @P3_GITHUB
-/docs/logs/p4.md                    @P4_GITHUB
-/docs/logs/p5.md                    @P5_GITHUB
+/docs/logs/p1.md                    @v1k111-29
+/docs/logs/p2.md                    @v1k111-29
+/docs/logs/p3.md                    @vishalbala-nps
+/docs/logs/p4.md                    @raghavvenkatraman
+/docs/logs/p5.md                    @v1k111-29
