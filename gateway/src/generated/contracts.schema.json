@@ -25,7 +25,11 @@
     "ListRecords": "list[ShippingBillRecord]",
     "RecordMilestone": "MilestoneEvent"
   },
-  "contracts_version": "0.3.0",
+  "chaincode_writes": [
+    "CreateRecord",
+    "RecordMilestone"
+  ],
+  "contracts_version": "1.0.0",
   "create_record_role": "AD_BANK",
   "default_msp_roles": {
     "Org1MSP": "AD_BANK",
@@ -58,7 +62,9 @@
       "PRECONDITION_FAILED",
       "DUPLICATE_MILESTONE",
       "ENDORSEMENT_FAILED",
+      "MVCC_CONFLICT",
       "LEDGER_UNAVAILABLE",
+      "OUTCOME_UNKNOWN",
       "INTERNAL"
     ],
     "Milestone": [
@@ -80,7 +86,9 @@
     "ENDORSEMENT_FAILED": 502,
     "INTERNAL": 500,
     "LEDGER_UNAVAILABLE": 503,
+    "MVCC_CONFLICT": 409,
     "NOT_FOUND": 404,
+    "OUTCOME_UNKNOWN": 504,
     "PRECONDITION_FAILED": 409,
     "VALIDATION": 422,
     "WRONG_BANK": 403,
@@ -187,7 +195,9 @@
             "PRECONDITION_FAILED",
             "DUPLICATE_MILESTONE",
             "ENDORSEMENT_FAILED",
+            "MVCC_CONFLICT",
             "LEDGER_UNAVAILABLE",
+            "OUTCOME_UNKNOWN",
             "INTERNAL"
           ],
           "title": "ErrorCode",
@@ -236,7 +246,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Backend (P4) -> gateway (P3). `identity` picks which org's credentials sign.",
+      "description": "Backend (P4) -> gateway (P3). `identity` picks which org's credentials sign.\n\nAn `identity` with no configured credentials gets VALIDATION (422). (CCR-p3-4c, D-21)",
       "properties": {
         "args": {
           "default": [],
@@ -290,7 +300,9 @@
             "PRECONDITION_FAILED",
             "DUPLICATE_MILESTONE",
             "ENDORSEMENT_FAILED",
+            "MVCC_CONFLICT",
             "LEDGER_UNAVAILABLE",
+            "OUTCOME_UNKNOWN",
             "INTERNAL"
           ],
           "title": "ErrorCode",
@@ -298,7 +310,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Gateway (P3) -> backend (P4).",
+      "description": "Gateway (P3) -> backend (P4).\n\nA failed submit carries `tx_id` whenever the gateway had assigned one. OUTCOME_UNKNOWN\nalways carries it; the backend never auto-retries such a submit (a retried REPEATABLE\nmilestone would be recorded twice) and checks the record instead. (CCR-p3-2, D-20)\n\n`tx_id` is always null on /evaluate results (nothing is committed). (CCR-p3-4b, D-21)\n\nError mapping (CCR-p3-3, CCR-p3-4a, D-21). A chaincode error reaches the gateway in each\nendorsing peer's details as \"chaincode response 500, <ErrorCode>: <message>\", not at the\nstart of the message. The gateway reads the code after that prefix in any peer's detail.\nAn unknown code or none gives INTERNAL. Peers that report different codes give\nENDORSEMENT_FAILED. Commit codes: MVCC_READ_CONFLICT gives MVCC_CONFLICT,\nENDORSEMENT_POLICY_FAILURE gives ENDORSEMENT_FAILED, any other gives INTERNAL.",
       "properties": {
         "error": {
           "anyOf": [
@@ -336,6 +348,27 @@
         "ok"
       ],
       "title": "GatewayResult",
+      "type": "object"
+    },
+    "HealthResponse": {
+      "additionalProperties": false,
+      "description": "Body of GET /health on the gateway and on the backend. (CCR-p3-4d, D-21)",
+      "properties": {
+        "contracts_version": {
+          "title": "Contracts Version",
+          "type": "string"
+        },
+        "status": {
+          "const": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "contracts_version"
+      ],
+      "title": "HealthResponse",
       "type": "object"
     },
     "MetricsSummary": {
@@ -1037,6 +1070,9 @@
   ],
   "repeatable": [
     "CUSTOMS_STATUS_OBSERVED"
+  ],
+  "retryable_errors": [
+    "MVCC_CONFLICT"
   ],
   "writer_role": {
     "CUSTOMS_STATUS_OBSERVED": "EXPORTERS_BODY",

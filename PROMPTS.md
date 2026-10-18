@@ -18,7 +18,7 @@ Placeholders used:
 
 | Suite | Command | Expect |
 |---|---|---|
-| Python | `uv sync && uv run pytest` | **32 passed, 13 skipped, 16 xfailed** (1 known warning) |
+| Python | `uv sync && uv run pytest` | **36 passed, 13 skipped, 16 xfailed** (1 known warning) |
 | Chaincode | `cd chaincode && npm ci && npm run typecheck && npm test` | **11 passed** (2 contract/parity + 9 `it.fails` specs) |
 | Gateway | `cd gateway && npm ci && npm run typecheck && npm test` | **4 passed, 5 todo** |
 | Frontend | `cd frontend && npm ci && npm run typecheck && npm test` | **2 passed, 9 todo** |
@@ -45,7 +45,7 @@ must cite its source or say [I], and contracts/contracts.ts must say the same th
 unclear, wrong or missing now, before the G1 freeze, not after.
 Check .github/CODEOWNERS has no @P*_GITHUB placeholders left and that the ruleset on develop
 matches REPO_SETUP.md step 3.
-Run: uv sync && uv run pytest (expect 32 passed, 13 skipped, 16 xfailed).
+Run: uv sync && uv run pytest (expect 36 passed, 13 skipped, 16 xfailed).
 Run: bash scripts/check_all.sh (expect chaincode 11 passed; gateway 4 passed, 5 todo; frontend
 2 passed, 9 todo; and "all suites green").
 Do not change any file except my log in the report step.
@@ -79,7 +79,7 @@ chaincode/test/rules.spec.test.ts is achievable with those rules. Flag anything 
 missing now, before it's frozen at G1, not after.
 Read docs/UNKNOWNS.md items U-07 (TypeScript chaincode on Drunix) and U-12 (what the transaction
 timestamp proves), which are mine to help close.
-Run: uv sync && uv run pytest (expect 32 passed, 13 skipped, 16 xfailed).
+Run: uv sync && uv run pytest (expect 36 passed, 13 skipped, 16 xfailed).
 Run: cd chaincode && npm ci && npm run typecheck && npm test (expect 11 passed: 2 contract/parity tests
 and 9 it.fails specs).
 Do not change any file except my log in the report step.
@@ -111,7 +111,7 @@ Read network/README.md and docs/UNKNOWNS.md items U-02, U-03, U-04, U-05, U-06 a
 On this machine, check (read-only, install nothing) and write down the exact output of:
 uname -a; docker --version; go version; jq --version; bash --version | head -1. This tells us whether
 this can be the host machine for the Drunix network.
-Run: uv sync && uv run pytest (expect 32 passed, 13 skipped, 16 xfailed).
+Run: uv sync && uv run pytest (expect 36 passed, 13 skipped, 16 xfailed).
 Run: cd gateway && npm ci && npm run typecheck && npm test (expect 4 passed, 5 todo).
 Do not change any file except my log in the report step.
 </verify>
@@ -142,7 +142,7 @@ GatewayRequest for the gateway. Read the specs I must satisfy: tests/backend/tes
 test_assessment_spec.py and test_metrics_spec.py, plus the docstrings in backend/s14/domain/. Check
 that each spec is achievable with the contract as written. Flag anything unclear, wrong or missing
 now, before it's frozen at G1, not after.
-Run: uv sync && uv run pytest (expect 32 passed, 13 skipped, 16 xfailed; the 16 xfailed are my specs).
+Run: uv sync && uv run pytest (expect 36 passed, 13 skipped, 16 xfailed; the 16 xfailed are my specs).
 Run: cd frontend && npm ci && npm test (expect 2 passed, 9 todo), to see what my API's caller expects.
 Do not change any file except my log in the report step.
 </verify>
@@ -171,7 +171,7 @@ ErrorBody from the backend, and I send CreateRecordRequest and MilestoneRequest.
 for paths and WRITER_ROLE to decide which milestones each desk may offer. Check that
 frontend/src/generated/contracts.ts matches, and read frontend/test/api.spec.test.ts (my todos).
 Flag anything unclear, wrong or missing now, before it's frozen at G1, not after.
-Run: uv sync && uv run pytest (expect 32 passed, 13 skipped, 16 xfailed).
+Run: uv sync && uv run pytest (expect 36 passed, 13 skipped, 16 xfailed).
 Run: cd frontend && npm ci && npm run typecheck && npm test (expect 2 passed, 9 todo).
 Do not change any file except my log in the report step.
 </verify>

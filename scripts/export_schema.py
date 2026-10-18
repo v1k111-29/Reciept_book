@@ -33,6 +33,8 @@ def build() -> dict:
         "create_record_role": c.CREATE_RECORD_ROLE.value,
         "chaincode_args": {k.value: list(v) for k, v in c.CHAINCODE_ARGS.items()},
         "chaincode_result": {k.value: v for k, v in c.CHAINCODE_RESULT.items()},
+        "chaincode_writes": sorted(f.value for f in c.CHAINCODE_WRITES),
+        "retryable_errors": sorted(e.value for e in c.RETRYABLE_ERRORS),
         "error_http_status": {k.value: v for k, v in c.ERROR_HTTP_STATUS.items()},
         "backend_routes": c.BACKEND_ROUTES,
         "gateway_routes": c.GATEWAY_ROUTES,

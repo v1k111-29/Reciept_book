@@ -1,10 +1,11 @@
 """S14 Receipt Book: shared contracts (types every module agrees on).
 
 OWNER: P1 (team lead). Nobody else edits this file.
-To change it, add a request to docs/logs/<your-id>.md under "Contract change requests"
-and tell the lead. After G1 the contracts are FROZEN: changes need a version bump
-(CONTRACTS_VERSION) and a regenerated contracts/contracts.schema.json
-(run: uv run python scripts/export_schema.py).
+FROZEN at 1.0.0 (gate G1, D-20; tag contracts-v1.0.0). Every change follows
+IMPLEMENTATION_PLAN.md section 4.2: a CCR in the requester's log
+(docs/logs/<your-id>.md, "Contract change requests"), the lead's approval, an entry in
+docs/DECISIONS.md, a CONTRACTS_VERSION bump and a regenerated
+contracts/contracts.schema.json (run: uv run python scripts/export_schema.py).
 
 What lives here: enums, data shapes, ownership rules (who may write which milestone),
 precondition rules (which milestone must exist first), error codes and route names.
@@ -20,11 +21,11 @@ from __future__ import annotations
 
 from datetime import date
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-CONTRACTS_VERSION = "0.3.0"
+CONTRACTS_VERSION = "1.0.0"
 
 # A SHA-256 hex digest: 64 lowercase hex characters.
 HASH_PATTERN = r"^[0-9a-f]{64}$"
@@ -83,8 +84,14 @@ class ErrorCode(StrEnum):
     WRONG_BANK = "WRONG_BANK"  # a bank other than the record's bank tried to write
     PRECONDITION_FAILED = "PRECONDITION_FAILED"  # a required earlier milestone is missing
     DUPLICATE_MILESTONE = "DUPLICATE_MILESTONE"  # a non-repeatable milestone already exists
-    ENDORSEMENT_FAILED = "ENDORSEMENT_FAILED"  # endorsement policy not satisfied
+    ENDORSEMENT_FAILED = "ENDORSEMENT_FAILED"  # endorsement policy not satisfied (also at commit)
+    # Fabric invalidated the transaction at commit because another write changed the same
+    # key first (commit code MVCC_READ_CONFLICT). Nothing was recorded: retry is safe (D-21).
+    MVCC_CONFLICT = "MVCC_CONFLICT"
     LEDGER_UNAVAILABLE = "LEDGER_UNAVAILABLE"  # gateway cannot reach Drunix
+    # A submit was sent with a tx_id but its commit status is not known (e.g. timeout while
+    # waiting for it); it may still commit. Never auto-retry: check the record first (D-20).
+    OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
     INTERNAL = "INTERNAL"  # unexpected gateway or chaincode failure (fallback; keep last)
 
 
@@ -153,6 +160,13 @@ CHAINCODE_RESULT: dict[ChaincodeFunction, str] = {
     ChaincodeFunction.LIST_RECORDS: "list[ShippingBillRecord]",
 }
 
+# Functions that write: the gateway runs them only on GATEWAY_ROUTES["submit"]. All other
+# functions are reads and run only on GATEWAY_ROUTES["evaluate"]. A function on the wrong
+# route gets VALIDATION. (CCR-p3-1, D-20)
+CHAINCODE_WRITES: frozenset[ChaincodeFunction] = frozenset(
+    {ChaincodeFunction.CREATE_RECORD, ChaincodeFunction.RECORD_MILESTONE}
+)
+
 # HTTP status for a failed response, used by both the gateway (body: GatewayResult with
 # ok=false) and the backend (body: ErrorBody). Successful responses are 200. (D-18)
 ERROR_HTTP_STATUS: dict[ErrorCode, int] = {
@@ -164,9 +178,16 @@ ERROR_HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.PRECONDITION_FAILED: 409,
     ErrorCode.DUPLICATE_MILESTONE: 409,
     ErrorCode.ENDORSEMENT_FAILED: 502,
+    ErrorCode.MVCC_CONFLICT: 409,
     ErrorCode.LEDGER_UNAVAILABLE: 503,
+    ErrorCode.OUTCOME_UNKNOWN: 504,
     ErrorCode.INTERNAL: 500,
 }
+
+# Errors the backend may retry, a bounded number of times (the count is P4's choice). The
+# transaction was invalidated at commit, so a retry cannot record a milestone twice, REPEATABLE
+# ones included. OUTCOME_UNKNOWN is never here: that transaction may still commit. (D-21)
+RETRYABLE_ERRORS: frozenset[ErrorCode] = frozenset({ErrorCode.MVCC_CONFLICT})
 
 
 # ----------------------------------------------------------------------- models
@@ -305,7 +326,10 @@ class ErrorBody(_Model):
 
 
 class GatewayRequest(_Model):
-    """Backend (P4) -> gateway (P3). `identity` picks which org's credentials sign."""
+    """Backend (P4) -> gateway (P3). `identity` picks which org's credentials sign.
+
+    An `identity` with no configured credentials gets VALIDATION (422). (CCR-p3-4c, D-21)
+    """
 
     function: ChaincodeFunction
     args: tuple[str, ...] = ()
@@ -313,7 +337,21 @@ class GatewayRequest(_Model):
 
 
 class GatewayResult(_Model):
-    """Gateway (P3) -> backend (P4)."""
+    """Gateway (P3) -> backend (P4).
+
+    A failed submit carries `tx_id` whenever the gateway had assigned one. OUTCOME_UNKNOWN
+    always carries it; the backend never auto-retries such a submit (a retried REPEATABLE
+    milestone would be recorded twice) and checks the record instead. (CCR-p3-2, D-20)
+
+    `tx_id` is always null on /evaluate results (nothing is committed). (CCR-p3-4b, D-21)
+
+    Error mapping (CCR-p3-3, CCR-p3-4a, D-21). A chaincode error reaches the gateway in each
+    endorsing peer's details as "chaincode response 500, <ErrorCode>: <message>", not at the
+    start of the message. The gateway reads the code after that prefix in any peer's detail.
+    An unknown code or none gives INTERNAL. Peers that report different codes give
+    ENDORSEMENT_FAILED. Commit codes: MVCC_READ_CONFLICT gives MVCC_CONFLICT,
+    ENDORSEMENT_POLICY_FAILURE gives ENDORSEMENT_FAILED, any other gives INTERNAL.
+    """
 
     ok: bool
     tx_id: str | None = None
@@ -326,14 +364,23 @@ class GatewayResult(_Model):
             raise ValueError("ok results carry no error")
         if not self.ok and self.error is None:
             raise ValueError("failed results must carry an error")
+        if self.error is not None and self.error.code == ErrorCode.OUTCOME_UNKNOWN and not self.tx_id:
+            raise ValueError("OUTCOME_UNKNOWN results must carry the tx_id")
         return self
+
+
+class HealthResponse(_Model):
+    """Body of GET /health on the gateway and on the backend. (CCR-p3-4d, D-21)"""
+
+    status: Literal["ok"]
+    contracts_version: str
 
 
 # ------------------------------------------------------------------- HTTP routes
 
 # Backend routes (P4 implements, P5 calls). Path params in braces.
 BACKEND_ROUTES: dict[str, str] = {
-    "health": "GET /health",
+    "health": "GET /health",  # -> HealthResponse
     "create_record": "POST /records",  # CreateRecordRequest -> TxReceipt
     "record_milestone": "POST /records/{sb_hash}/milestones",  # MilestoneRequest -> TxReceipt
     "get_timeline": "GET /records/{sb_hash}",  # -> TimelineView
@@ -343,7 +390,7 @@ BACKEND_ROUTES: dict[str, str] = {
 
 # Gateway routes (P3 implements, P4 calls).
 GATEWAY_ROUTES: dict[str, str] = {
-    "health": "GET /health",
+    "health": "GET /health",  # -> HealthResponse
     "submit": "POST /submit",  # write transactions (endorse + order + commit)
     "evaluate": "POST /evaluate",  # read-only queries
 }
@@ -362,6 +409,7 @@ SCHEMA_MODELS: tuple[type[BaseModel], ...] = (
     ErrorBody,
     GatewayRequest,
     GatewayResult,
+    HealthResponse,
 )
 SCHEMA_ENUMS: tuple[type[StrEnum], ...] = (
     OrgRole,

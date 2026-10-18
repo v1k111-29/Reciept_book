@@ -8,7 +8,7 @@
  * mismatch between Python and TypeScript turns a test red.
  */
 
-export const CONTRACTS_VERSION = "0.3.0";
+export const CONTRACTS_VERSION = "1.0.0";
 export const HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 export const OrgRole = {
@@ -55,8 +55,10 @@ export const ErrorCode = {
   WRONG_BANK: "WRONG_BANK",
   PRECONDITION_FAILED: "PRECONDITION_FAILED",
   DUPLICATE_MILESTONE: "DUPLICATE_MILESTONE",
-  ENDORSEMENT_FAILED: "ENDORSEMENT_FAILED",
+  ENDORSEMENT_FAILED: "ENDORSEMENT_FAILED", // also the ENDORSEMENT_POLICY_FAILURE commit code
+  MVCC_CONFLICT: "MVCC_CONFLICT", // invalidated at commit (MVCC_READ_CONFLICT); nothing recorded, retry is safe
   LEDGER_UNAVAILABLE: "LEDGER_UNAVAILABLE",
+  OUTCOME_UNKNOWN: "OUTCOME_UNKNOWN", // submit sent with a tx_id, commit status unknown; never auto-retry
   INTERNAL: "INTERNAL", // unexpected gateway or chaincode failure (fallback; keep last)
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -108,6 +110,9 @@ export const CHAINCODE_RESULT: Record<ChaincodeFunction, string> = {
   ListRecords: "list[ShippingBillRecord]",
 };
 
+/** Write functions: /submit only. All others are reads: /evaluate only. Wrong route -> VALIDATION. */
+export const CHAINCODE_WRITES: readonly ChaincodeFunction[] = ["CreateRecord", "RecordMilestone"];
+
 /** HTTP status of a failed gateway or backend response; success is 200 (D-18). */
 export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   VALIDATION: 422,
@@ -118,9 +123,14 @@ export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   PRECONDITION_FAILED: 409,
   DUPLICATE_MILESTONE: 409,
   ENDORSEMENT_FAILED: 502,
+  MVCC_CONFLICT: 409,
   LEDGER_UNAVAILABLE: 503,
+  OUTCOME_UNKNOWN: 504,
   INTERNAL: 500,
 };
+
+/** Errors the backend may retry, a bounded number of times. Never OUTCOME_UNKNOWN (D-21). */
+export const RETRYABLE_ERRORS: readonly ErrorCode[] = ["MVCC_CONFLICT"];
 
 export const BACKEND_ROUTES = {
   health: "GET /health",
@@ -214,9 +224,15 @@ export interface GatewayRequest {
 
 export interface GatewayResult {
   ok: boolean;
-  tx_id?: string | null;
+  tx_id?: string | null; // also on a failed submit when one was assigned; required for OUTCOME_UNKNOWN
   payload?: unknown; // parsed JSON of CHAINCODE_RESULT[function], never a JSON string
   error?: ErrorBody | null;
+}
+
+/** Body of GET /health on the gateway and on the backend (D-21). */
+export interface HealthResponse {
+  status: "ok";
+  contracts_version: string;
 }
 
 /** Field names of each model, checked against the JSON schema by the parity tests. */
@@ -239,4 +255,5 @@ export const MODEL_FIELDS: Record<string, readonly string[]> = {
   ErrorBody: ["code", "message"],
   GatewayRequest: ["function", "args", "identity"],
   GatewayResult: ["ok", "tx_id", "payload", "error"],
+  HealthResponse: ["status", "contracts_version"],
 };
