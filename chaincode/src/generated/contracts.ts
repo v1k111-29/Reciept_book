@@ -9,7 +9,7 @@
  * mismatch between Python and TypeScript turns a test red.
  */
 
-export const CONTRACTS_VERSION = "0.3.0";
+export const CONTRACTS_VERSION = "1.0.0";
 export const HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 export const OrgRole = {

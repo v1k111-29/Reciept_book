@@ -1,10 +1,11 @@
 """S14 Receipt Book: shared contracts (types every module agrees on).
 
 OWNER: P1 (team lead). Nobody else edits this file.
-To change it, add a request to docs/logs/<your-id>.md under "Contract change requests"
-and tell the lead. After G1 the contracts are FROZEN: changes need a version bump
-(CONTRACTS_VERSION) and a regenerated contracts/contracts.schema.json
-(run: uv run python scripts/export_schema.py).
+FROZEN at 1.0.0 (gate G1, D-20; tag contracts-v1.0.0). Every change follows
+IMPLEMENTATION_PLAN.md section 4.2: a CCR in the requester's log
+(docs/logs/<your-id>.md, "Contract change requests"), the lead's approval, an entry in
+docs/DECISIONS.md, a CONTRACTS_VERSION bump and a regenerated
+contracts/contracts.schema.json (run: uv run python scripts/export_schema.py).
 
 What lives here: enums, data shapes, ownership rules (who may write which milestone),
 precondition rules (which milestone must exist first), error codes and route names.
@@ -24,7 +25,7 @@ from typing import Any
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-CONTRACTS_VERSION = "0.3.0"
+CONTRACTS_VERSION = "1.0.0"
 
 # A SHA-256 hex digest: 64 lowercase hex characters.
 HASH_PATTERN = r"^[0-9a-f]{64}$"

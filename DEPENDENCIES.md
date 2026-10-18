@@ -25,7 +25,7 @@ parallel from G1.
 
 | Id | Needs | From | Contract item | Needed by | Stand-in until then | If late |
 |---|---|---|---|---|---|---|
-| p2 | frozen contract rules | p1 | `WRITER_ROLE`, `PRECONDITIONS`, `REPEATABLE`, `REFERENCE_REQUIRED`, `ErrorCode` | G1 | draft 0.1.0 (already usable) | rules only change via CCR |
+| p2 | frozen contract rules | p1 | `WRITER_ROLE`, `PRECONDITIONS`, `REPEATABLE`, `REFERENCE_REQUIRED`, `ErrorCode` | G1 | frozen 1.0.0 (D-20) | rules only change via CCR |
 | p2 | a running network to deploy | p3 | `network/up.sh`, `network/deploy.sh` | P2-G1-T2 | unit tests on `rules.ts` | log DEP; lead re-plans |
 | p3 | chaincode function names + result shapes | p1 / p2 | `ChaincodeFunction`, `ShippingBillRecord` | G2 | Drunix `asset-transfer-basic` sample | gateway tests use a fake `Ledger` |
 | p3 | deployed `receiptbook` chaincode | p2 | P2-G2-T1 | G2 | sample chaincode | log DEP |

@@ -25,7 +25,7 @@
     "ListRecords": "list[ShippingBillRecord]",
     "RecordMilestone": "MilestoneEvent"
   },
-  "contracts_version": "0.3.0",
+  "contracts_version": "1.0.0",
   "create_record_role": "AD_BANK",
   "default_msp_roles": {
     "Org1MSP": "AD_BANK",
