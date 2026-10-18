@@ -5,7 +5,7 @@ Rule: nobody codes as if an unknown were known. Close an item by writing the evi
 
 | ID | Unknown | Why it matters | Owner | Close by | How to close | Status |
 |---|---|---|---|---|---|---|
-| U-01 | Hackathon timeline, our challenge code, judging criteria, prototype requirement, official FAQ | Gate dates; whether "admit a database baseline" is acceptable. Project Axis's repo says pitch 25 Oct, prototype 10-22 Nov [S] | p1 | G1 | ask the organisers (India Blockchain Forum, per Project Axis's README); get the FAQ | OPEN (partial evidence below, 18 Oct) |
+| U-01 | Hackathon timeline, our challenge code, judging criteria, prototype requirement, official FAQ | Gate dates; whether "admit a database baseline" is acceptable. Project Axis's repo says pitch 25 Oct, prototype 10-22 Nov [S] | p1 | G1 | ask the organisers (India Blockchain Forum, per Project Axis's README); get the FAQ | OPEN (deadline 21 Oct per lead; partial evidence below) |
 | U-02 | Which Drunix peer serves the Fabric Gateway API (lite or committing), and does `@hyperledger/fabric-gateway` 1.13 work with it | The whole gateway design (D-04) | p3 | G1 | connect from the gateway to each peer; log the result | OPEN |
 | U-03 | Does Drunix `network.sh deployCC` accept `-ccep` (endorsement policy) and `-ccl typescript` | E3 and deployment | p3 | G1 | read `network.sh` / run it; log | OPEN |
 | U-04 | Can the state DB be something other than YugabyteDB (issue #8: non-atomic SQL + Redis writes) | Reliability of commits | p3 | G1 | try the `-s` options; log | OPEN |
@@ -42,3 +42,6 @@ FAQ were **not** found on any public page; they are probably on the login-only p
   Impact) and for IP staying with participants [S]. https://github.com/ferroflux/project-axis
 - Still unknown: our challenge code and track, whether the dates above apply to our track,
   the judging rubric, and what the prototype must show.
+- 18 Oct 2026, the lead (p1): **our deadline is 21 Oct 2026** [source: the lead; which
+  deliverable is due (pitch or prototype) and the official page to cite are still to be added].
+  This replaces the 25 Oct date from Project Axis for planning.
