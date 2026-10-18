@@ -18,13 +18,13 @@ Sources behind the rules are cited inline as [P]/[S]/[I] (see docs/PROBLEM.md):
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-CONTRACTS_VERSION = "0.1.0"
+CONTRACTS_VERSION = "0.2.0"
 
 # A SHA-256 hex digest: 64 lowercase hex characters.
 HASH_PATTERN = r"^[0-9a-f]{64}$"
@@ -85,6 +85,7 @@ class ErrorCode(StrEnum):
     DUPLICATE_MILESTONE = "DUPLICATE_MILESTONE"  # a non-repeatable milestone already exists
     ENDORSEMENT_FAILED = "ENDORSEMENT_FAILED"  # endorsement policy not satisfied
     LEDGER_UNAVAILABLE = "LEDGER_UNAVAILABLE"  # gateway cannot reach Drunix
+    INTERNAL = "INTERNAL"  # unexpected gateway or chaincode failure (fallback; keep last)
 
 
 # ------------------------------------------------------------------ ownership rules
@@ -92,9 +93,9 @@ class ErrorCode(StrEnum):
 # Who may submit each milestone. Every write is ALSO subject to the network-level
 # endorsement policy set at deploy time (both orgs must endorse) [I].
 WRITER_ROLE: dict[Milestone, OrgRole] = {
-    Milestone.DOCS_ACKNOWLEDGED: OrgRole.AD_BANK,
-    Milestone.PAYMENT_RECEIVED: OrgRole.AD_BANK,
-    Milestone.EBRC_SELF_CERTIFIED: OrgRole.EXPORTERS_BODY,
+    Milestone.DOCS_ACKNOWLEDGED: OrgRole.AD_BANK,  # bank acknowledges receipt (PROBLEM 6.3) [I]
+    Milestone.PAYMENT_RECEIVED: OrgRole.AD_BANK,  # the bank receives the IRM (PROBLEM 6.3) [I]
+    Milestone.EBRC_SELF_CERTIFIED: OrgRole.EXPORTERS_BODY,  # "signed by the exporter's side" (PROBLEM 6.3) [I]
     Milestone.EDPMS_MARKED_OFF: OrgRole.AD_BANK,  # only the record's own bank [I]
     Milestone.CUSTOMS_STATUS_OBSERVED: OrgRole.EXPORTERS_BODY,  # until Customs joins (N3)
 }
@@ -115,6 +116,7 @@ PRECONDITIONS: dict[Milestone, tuple[Milestone, ...]] = {
 REPEATABLE: frozenset[Milestone] = frozenset({Milestone.CUSTOMS_STATUS_OBSERVED})
 
 # Milestones that must carry a reference_hash (hash of the IRM / eBRC number / document set).
+# Design choice from PROBLEM 6.3 ("hashes of documents"; IRM and eBRC references) [I].
 REFERENCE_REQUIRED: frozenset[Milestone] = frozenset(
     {Milestone.DOCS_ACKNOWLEDGED, Milestone.PAYMENT_RECEIVED, Milestone.EBRC_SELF_CERTIFIED}
 )
@@ -133,15 +135,23 @@ class _Model(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+# There is no free-text field on any ledger shape: free text could carry a raw shipping-bill,
+# IRM or eBRC number onto the ledger (FEATURES.md E9, D-07). Removed in 0.2.0 (D-17).
+
+OCCURRED_ON_DESCRIPTION = (
+    "Date the real-world step happened, as attested by the submitter. For DOCS_ACKNOWLEDGED "
+    "it is the date the exporter handed the documents over (pilot measure 1)."
+)
+
+
 class MilestoneSubmission(_Model):
     """What a client asks to record. Sent backend -> gateway -> chaincode."""
 
     sb_hash: str = Field(pattern=HASH_PATTERN)
     milestone: Milestone
-    occurred_on: date  # the date the submitter attests the real-world step happened
+    occurred_on: date = Field(description=OCCURRED_ON_DESCRIPTION)
     reference_hash: str | None = Field(default=None, pattern=HASH_PATTERN)
     customs_status: CustomsStatus | None = None
-    note: str | None = Field(default=None, max_length=280)
 
     @model_validator(mode="after")
     def _check_fields(self) -> MilestoneSubmission:
@@ -160,12 +170,13 @@ class MilestoneEvent(_Model):
 
     sb_hash: str = Field(pattern=HASH_PATTERN)
     milestone: Milestone
-    occurred_on: date
+    occurred_on: date = Field(description=OCCURRED_ON_DESCRIPTION)
     reference_hash: str | None = Field(default=None, pattern=HASH_PATTERN)
     customs_status: CustomsStatus | None = None
-    note: str | None = Field(default=None, max_length=280)
     tx_id: str
-    ledger_time: datetime  # transaction timestamp from the ledger
+    # Transaction timestamp from the ledger, timezone required. It shows when the signed
+    # record was submitted, not when the real-world step happened (U-12) [I].
+    ledger_time: AwareDatetime
     submitter_msp: str
     submitter_role: OrgRole
 
@@ -175,7 +186,7 @@ class ShippingBillRecord(_Model):
 
     sb_hash: str = Field(pattern=HASH_PATTERN)
     bank_msp: str  # the AD bank that created the record; only it may write bank milestones
-    created_ledger_time: datetime
+    created_ledger_time: AwareDatetime
     events: tuple[MilestoneEvent, ...] = ()
 
 
@@ -193,11 +204,10 @@ class MilestoneRequest(_Model):
     The raw value is never stored or logged (FEATURES.md E9)."""
 
     milestone: Milestone
-    occurred_on: date
+    occurred_on: date = Field(description=OCCURRED_ON_DESCRIPTION)
     acting_as: OrgRole  # which desk is acting; the backend picks that org's gateway identity
     reference: str | None = Field(default=None, min_length=1, max_length=64)
     customs_status: CustomsStatus | None = None
-    note: str | None = Field(default=None, max_length=280)
 
     @model_validator(mode="after")
     def _check_fields(self) -> MilestoneRequest:
@@ -233,8 +243,16 @@ class MetricsSummary(_Model):
     """The three pilot measures (docs/PROBLEM.md, 6.6). None = not enough data."""
 
     n_records: int = Field(ge=0)
-    median_docs_handover_to_ack_days: float | None = None
-    median_payment_to_markoff_days: float | None = None
+    median_docs_handover_to_ack_days: float | None = Field(
+        default=None,
+        description="DOCS_ACKNOWLEDGED: ledger_time.date() minus occurred_on (hand-over date). "
+        "ledger_time is the submission time, not proof of when the step happened (U-12) [I].",
+    )
+    median_payment_to_markoff_days: float | None = Field(
+        default=None,
+        description="EDPMS_MARKED_OFF.ledger_time.date() minus PAYMENT_RECEIVED.occurred_on. "
+        "ledger_time is the submission time, not proof of when the step happened (U-12) [I].",
+    )
     pending_total: int = Field(default=0, ge=0)
     pending_with_markoff: int = Field(default=0, ge=0)
     pending_with_markoff_share: float | None = Field(default=None, ge=0, le=1)

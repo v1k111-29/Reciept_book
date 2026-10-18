@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 from pydantic import ValidationError
 
 from s14 import contracts as c
-from tests.factories import SB, h
+from tests.factories import SB, T0, h
 
 
 def sub(**kw):
@@ -105,3 +105,30 @@ def test_milestone_request_rules_match_submission_rules():
         mreq(milestone=c.Milestone.CUSTOMS_STATUS_OBSERVED, reference=None)  # needs customs_status
     with pytest.raises(ValidationError):
         mreq(customs_status=c.CustomsStatus.PENDING)  # not allowed on PAYMENT_RECEIVED
+
+
+def test_no_free_text_note_on_ledger_shapes():  # E9, D-17
+    with pytest.raises(ValidationError):
+        sub(note="SB 1234567")
+    with pytest.raises(ValidationError):
+        mreq(note="IRM-123")
+
+
+def event(**kw):
+    base = dict(sb_hash=SB, milestone=c.Milestone.PAYMENT_RECEIVED, occurred_on=date(2026, 11, 1),
+                reference_hash=h("irm"), tx_id="t1", ledger_time=T0, submitter_msp="Org1MSP",
+                submitter_role=c.OrgRole.AD_BANK)
+    base.update(kw)
+    return c.MilestoneEvent(**base)
+
+
+def test_ledger_times_need_a_timezone():
+    assert event().ledger_time == T0
+    with pytest.raises(ValidationError):
+        event(ledger_time=datetime(2026, 11, 1, 9, 0))
+    with pytest.raises(ValidationError):
+        c.ShippingBillRecord(sb_hash=SB, bank_msp="Org1MSP", created_ledger_time=datetime(2026, 11, 1))
+
+
+def test_internal_is_the_last_error_code():  # fallback for unexpected failures
+    assert list(c.ErrorCode)[-1] is c.ErrorCode.INTERNAL

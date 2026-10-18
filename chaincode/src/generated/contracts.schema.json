@@ -7,7 +7,7 @@
     "metrics": "GET /metrics",
     "record_milestone": "POST /records/{sb_hash}/milestones"
   },
-  "contracts_version": "0.1.0",
+  "contracts_version": "0.2.0",
   "default_msp_roles": {
     "Org1MSP": "AD_BANK",
     "Org2MSP": "EXPORTERS_BODY"
@@ -39,7 +39,8 @@
       "PRECONDITION_FAILED",
       "DUPLICATE_MILESTONE",
       "ENDORSEMENT_FAILED",
-      "LEDGER_UNAVAILABLE"
+      "LEDGER_UNAVAILABLE",
+      "INTERNAL"
     ],
     "Milestone": [
       "DOCS_ACKNOWLEDGED",
@@ -155,7 +156,8 @@
             "PRECONDITION_FAILED",
             "DUPLICATE_MILESTONE",
             "ENDORSEMENT_FAILED",
-            "LEDGER_UNAVAILABLE"
+            "LEDGER_UNAVAILABLE",
+            "INTERNAL"
           ],
           "title": "ErrorCode",
           "type": "string"
@@ -257,7 +259,8 @@
             "PRECONDITION_FAILED",
             "DUPLICATE_MILESTONE",
             "ENDORSEMENT_FAILED",
-            "LEDGER_UNAVAILABLE"
+            "LEDGER_UNAVAILABLE",
+            "INTERNAL"
           ],
           "title": "ErrorCode",
           "type": "string"
@@ -318,6 +321,7 @@
             }
           ],
           "default": null,
+          "description": "DOCS_ACKNOWLEDGED: ledger_time.date() minus occurred_on (hand-over date). ledger_time is the submission time, not proof of when the step happened (U-12) [I].",
           "title": "Median Docs Handover To Ack Days"
         },
         "median_payment_to_markoff_days": {
@@ -330,6 +334,7 @@
             }
           ],
           "default": null,
+          "description": "EDPMS_MARKED_OFF.ledger_time.date() minus PAYMENT_RECEIVED.occurred_on. ledger_time is the submission time, not proof of when the step happened (U-12) [I].",
           "title": "Median Payment To Markoff Days"
         },
         "n_records": {
@@ -425,20 +430,8 @@
         "milestone": {
           "$ref": "#/$defs/Milestone"
         },
-        "note": {
-          "anyOf": [
-            {
-              "maxLength": 280,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Note"
-        },
         "occurred_on": {
+          "description": "Date the real-world step happened, as attested by the submitter. For DOCS_ACKNOWLEDGED it is the date the exporter handed the documents over (pilot measure 1).",
           "format": "date",
           "title": "Occurred On",
           "type": "string"
@@ -538,20 +531,8 @@
         "milestone": {
           "$ref": "#/$defs/Milestone"
         },
-        "note": {
-          "anyOf": [
-            {
-              "maxLength": 280,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Note"
-        },
         "occurred_on": {
+          "description": "Date the real-world step happened, as attested by the submitter. For DOCS_ACKNOWLEDGED it is the date the exporter handed the documents over (pilot measure 1).",
           "format": "date",
           "title": "Occurred On",
           "type": "string"
@@ -619,20 +600,8 @@
         "milestone": {
           "$ref": "#/$defs/Milestone"
         },
-        "note": {
-          "anyOf": [
-            {
-              "maxLength": 280,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Note"
-        },
         "occurred_on": {
+          "description": "Date the real-world step happened, as attested by the submitter. For DOCS_ACKNOWLEDGED it is the date the exporter handed the documents over (pilot measure 1).",
           "format": "date",
           "title": "Occurred On",
           "type": "string"
@@ -709,20 +678,8 @@
             "milestone": {
               "$ref": "#/$defs/Milestone"
             },
-            "note": {
-              "anyOf": [
-                {
-                  "maxLength": 280,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Note"
-            },
             "occurred_on": {
+              "description": "Date the real-world step happened, as attested by the submitter. For DOCS_ACKNOWLEDGED it is the date the exporter handed the documents over (pilot measure 1).",
               "format": "date",
               "title": "Occurred On",
               "type": "string"
@@ -897,20 +854,8 @@
             "milestone": {
               "$ref": "#/$defs/Milestone"
             },
-            "note": {
-              "anyOf": [
-                {
-                  "maxLength": 280,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Note"
-            },
             "occurred_on": {
+              "description": "Date the real-world step happened, as attested by the submitter. For DOCS_ACKNOWLEDGED it is the date the exporter handed the documents over (pilot measure 1).",
               "format": "date",
               "title": "Occurred On",
               "type": "string"

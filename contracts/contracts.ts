@@ -8,7 +8,7 @@
  * mismatch between Python and TypeScript turns a test red.
  */
 
-export const CONTRACTS_VERSION = "0.1.0";
+export const CONTRACTS_VERSION = "0.2.0";
 export const HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 export const OrgRole = {
@@ -57,6 +57,7 @@ export const ErrorCode = {
   DUPLICATE_MILESTONE: "DUPLICATE_MILESTONE",
   ENDORSEMENT_FAILED: "ENDORSEMENT_FAILED",
   LEDGER_UNAVAILABLE: "LEDGER_UNAVAILABLE",
+  INTERNAL: "INTERNAL", // unexpected gateway or chaincode failure (fallback; keep last)
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -104,19 +105,19 @@ export const GATEWAY_ROUTES = {
 } as const;
 
 // ---- model shapes (dates as ISO strings on the wire) ----
+// No free-text field on any ledger shape: it could carry a raw SB/IRM/eBRC number (E9, D-17).
 
 export interface MilestoneSubmission {
   sb_hash: string;
   milestone: Milestone;
-  occurred_on: string; // YYYY-MM-DD
+  occurred_on: string; // YYYY-MM-DD; for DOCS_ACKNOWLEDGED, the documents' hand-over date
   reference_hash?: string | null;
   customs_status?: CustomsStatus | null;
-  note?: string | null;
 }
 
 export interface MilestoneEvent extends MilestoneSubmission {
   tx_id: string;
-  ledger_time: string; // ISO 8601 with timezone
+  ledger_time: string; // ISO 8601, timezone required; submission time, not proof of the step (U-12)
   submitter_msp: string;
   submitter_role: OrgRole;
 }
@@ -124,7 +125,7 @@ export interface MilestoneEvent extends MilestoneSubmission {
 export interface ShippingBillRecord {
   sb_hash: string;
   bank_msp: string;
-  created_ledger_time: string;
+  created_ledger_time: string; // ISO 8601, timezone required
   events: MilestoneEvent[];
 }
 
@@ -140,7 +141,6 @@ export interface MilestoneRequest {
   acting_as: OrgRole;
   reference?: string | null; // raw; hashed by the backend, never stored
   customs_status?: CustomsStatus | null;
-  note?: string | null;
 }
 
 export interface TxReceipt {
@@ -161,8 +161,8 @@ export interface TimelineView {
 
 export interface MetricsSummary {
   n_records: number;
-  median_docs_handover_to_ack_days: number | null;
-  median_payment_to_markoff_days: number | null;
+  median_docs_handover_to_ack_days: number | null; // ack ledger_time.date() - its occurred_on (U-12)
+  median_payment_to_markoff_days: number | null; // mark-off ledger_time.date() - payment occurred_on (U-12)
   pending_total: number;
   pending_with_markoff: number;
   pending_with_markoff_share: number | null;
@@ -188,14 +188,14 @@ export interface GatewayResult {
 
 /** Field names of each model, checked against the JSON schema by the parity tests. */
 export const MODEL_FIELDS: Record<string, readonly string[]> = {
-  MilestoneSubmission: ["sb_hash", "milestone", "occurred_on", "reference_hash", "customs_status", "note"],
+  MilestoneSubmission: ["sb_hash", "milestone", "occurred_on", "reference_hash", "customs_status"],
   MilestoneEvent: [
-    "sb_hash", "milestone", "occurred_on", "reference_hash", "customs_status", "note",
+    "sb_hash", "milestone", "occurred_on", "reference_hash", "customs_status",
     "tx_id", "ledger_time", "submitter_msp", "submitter_role",
   ],
   ShippingBillRecord: ["sb_hash", "bank_msp", "created_ledger_time", "events"],
   CreateRecordRequest: ["sb_number", "port_code", "sb_date"],
-  MilestoneRequest: ["milestone", "occurred_on", "acting_as", "reference", "customs_status", "note"],
+  MilestoneRequest: ["milestone", "occurred_on", "acting_as", "reference", "customs_status"],
   TxReceipt: ["sb_hash", "tx_id"],
   CauseAssessment: ["bucket", "missing", "explanation"],
   TimelineView: ["record", "assessment"],
