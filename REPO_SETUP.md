@@ -8,7 +8,7 @@ Do this once, before anyone runs the G0 kickoff prompt.
 - `scripts/team.conf`: `LEAD_ID=p1` (change only if your lead uses another id).
 - `docs/logs/README.md`: fill the id → name table.
 
-## 2. Create the repo and the two long-lived branches
+## 2. Create the repo and the long-lived branch
 
 ```bash
 cd s14-receipt-book
@@ -19,15 +19,18 @@ gh repo create <OWNER>/<REPO_NAME> --private --source=. --push   # or create it 
 git checkout -b develop && git push -u origin develop
 ```
 
-Put the repo in a GitHub **organization** and make the lead an admin of it (D-14). A repo
-owned by a personal account gives collaborators no admin role and no "restrict who can push",
-so the lead could not apply step 3 or bypass it. Branch protection and rulesets on a
-**private** repo need a paid plan (Team for an org) [I, U-09: check in your settings screen];
-a public repo does not.
+Then on GitHub: Settings → General → Default branch → `develop`. `develop` is the only
+long-lived branch; `main` is retired and stays frozen at the scaffold commit (D-16).
 
-## 3. Protect `main` and `develop` (GitHub → Settings → Rules → Rulesets)
+The lead must be an admin of the repo: the owner of a personal-account repo, or an admin in
+an organization (D-14, D-16). Collaborators on a personal-account repo get no admin role and
+no "restrict who can push". Rulesets on a **private** repo need a paid plan: GitHub's API
+answers "Upgrade to GitHub Pro or make this repository public to enable this feature." (U-09).
+Our repo is public on the lead's personal account.
 
-One ruleset per branch. For **both** branches:
+## 3. Protect `develop` (GitHub → Settings → Rules → Rulesets)
+
+One branch ruleset, `protect-develop`, target `develop`:
 - Enforcement: Active.
 - Bypass list: the lead only (the "Repository admin" role, or a team that holds only the
   lead), mode **"For pull requests only"** (D-14). The lead then merges by PR without a
@@ -36,12 +39,12 @@ One ruleset per branch. For **both** branches:
   Owners** only after step 1 has real usernames in `.github/CODEOWNERS` (D-15).
 - Require status checks to pass: `branch-rules`, `python`, `node (chaincode)`, `node (gateway)`, `node (frontend)`.
   GitHub lists a check only after it has run; `branch-rules` runs only on a pull request
-  into `develop` or `main`, so open one PR first.
+  into `develop`, so open one PR first.
 - Block force pushes and restrict deletions.
+- Merge method: merge commits only.
 - Optional: "Restrict updates", so only the bypass list (the lead) can merge.
 
-For `main`, also: allow merging only from `develop`. GitHub has no setting for this; the
-required `branch-rules` CI job fails any PR into `main` whose source isn't `develop`.
+No ruleset on `main`: it is retired (D-16). Only the pre-push hook guards it.
 
 Bypass skips every rule in the ruleset, required checks included, so the lead checks CI is
 green before merging (`docs/GIT_WORKFLOW.md`).
@@ -49,7 +52,7 @@ green before merging (`docs/GIT_WORKFLOW.md`).
 ## 4. Invite the team
 
 Give p2-p5 **Write** access, so they can push their own branches and open PRs. The
-rulesets stop them writing to `main`/`develop`.
+ruleset stops them writing to `develop`.
 
 ## 5. Check it works
 
