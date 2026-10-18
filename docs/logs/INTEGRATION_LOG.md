@@ -65,3 +65,18 @@ tracks. Newest last.
   CreateRecord by a non-bank and RecordMilestone on a missing record), ISS-p1-12 (HTTP status),
   chaincode args per function.
 - Gate status: G0 still not met (push test, p3/p4 reports); G1 freeze blocked on the open items above.
+
+### 2026-10-18 16:20 | merge window 3 | develop before 7054277
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #10 p1/g1-contracts-freeze | p1 | merged (lead bypass) | 4d26576 | py 32/13s/16x / cc 11 / gw 4+5todo / fe 2+9todo |
+- `gh pr merge 10 --merge --admin` after CI on the PR was green (5/5 checks); branch was current
+  with develop 7054277. Then `bash scripts/check_all.sh` on develop 4d26576: "all suites green".
+- Contracts now 0.3.0 (D-18). New expected Python count on develop: 32 passed, 13 skipped,
+  16 xfailed (3 new contract tests); PROMPTS.md and docs/logs/README.md updated in this log PR.
+- Teammates: rebase on develop 4d26576. Requests: REQ-p1-24 (p2), REQ-p1-25 (p3), REQ-p1-26 (p4),
+  REQ-p1-27 (p5): adopt CHAINCODE_ARGS, CHAINCODE_RESULT, CREATE_RECORD_ROLE, ERROR_HTTP_STATUS.
+- Contract concerns: ISS-p1-7, 8, 11, 12 resolved. No open p1 contract item; `contracts-v1.0.0`
+  tag waits for the p3/p4 G0 contract concerns.
+- Gate status: G0 still not met (push test, p3/p4 reports). G1: contracts ready to freeze;
+  network up (P3-G1) and U-02..U-05, U-07 still open.
