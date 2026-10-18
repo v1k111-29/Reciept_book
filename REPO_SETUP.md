@@ -19,25 +19,37 @@ gh repo create <OWNER>/<REPO_NAME> --private --source=. --push   # or create it 
 git checkout -b develop && git push -u origin develop
 ```
 
-Recommended: create a free GitHub **organization** for the team and put the repo there.
-Some push-restriction settings are only offered for organization repos [U-09: check in
-your settings screen].
+Put the repo in a GitHub **organization** and make the lead an admin of it (D-14). A repo
+owned by a personal account gives collaborators no admin role and no "restrict who can push",
+so the lead could not apply step 3 or bypass it. Branch protection and rulesets on a
+**private** repo need a paid plan (Team for an org) [I, U-09: check in your settings screen];
+a public repo does not.
 
-## 3. Protect `main` and `develop` (GitHub → Settings → Branches, or Rules → Rulesets)
+## 3. Protect `main` and `develop` (GitHub → Settings → Rules → Rulesets)
 
-For **both** branches:
-- Require a pull request before merging, with **1 approval** and **review from Code Owners**.
+One ruleset per branch. For **both** branches:
+- Enforcement: Active.
+- Bypass list: the lead only (the "Repository admin" role, or a team that holds only the
+  lead), mode **"For pull requests only"** (D-14). The lead then merges by PR without a
+  second approval but can never push directly.
+- Require a pull request before merging, with **1 approval**. Turn on **review from Code
+  Owners** only after step 1 has real usernames in `.github/CODEOWNERS` (D-15).
 - Require status checks to pass: `branch-rules`, `python`, `node (chaincode)`, `node (gateway)`, `node (frontend)`.
-- Block force pushes and deletions.
-- Restrict who can push or merge to the lead, if your plan offers it (U-09).
+  GitHub lists a check only after it has run; `branch-rules` runs only on a pull request
+  into `develop` or `main`, so open one PR first.
+- Block force pushes and restrict deletions.
+- Optional: "Restrict updates", so only the bypass list (the lead) can merge.
 
-For `main`, also: allow merging only from `develop`. The `branch-rules` CI job also fails
-any PR into `main` whose source isn't `develop`.
+For `main`, also: allow merging only from `develop`. GitHub has no setting for this; the
+required `branch-rules` CI job fails any PR into `main` whose source isn't `develop`.
+
+Bypass skips every rule in the ruleset, required checks included, so the lead checks CI is
+green before merging (`docs/GIT_WORKFLOW.md`).
 
 ## 4. Invite the team
 
-Give p2-p5 **Write** access, so they can push their own branches and open PRs. Branch
-protection stops them writing to `main`/`develop`.
+Give p2-p5 **Write** access, so they can push their own branches and open PRs. The
+rulesets stop them writing to `main`/`develop`.
 
 ## 5. Check it works
 

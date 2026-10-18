@@ -260,12 +260,15 @@ gh pr diff --name-only against Part 2.2 of IMPLEMENTATION_PLAN.md), the checklis
 author's log has this session's entry. Report any PR that fails a check and why. Don't merge it.
 </verify>
 <task>
-Merge the PRs that pass, one at a time, with a merge commit. After EACH merge: git pull &&
-bash scripts/check_all.sh. If develop goes red, git revert -m 1 the merge, push, and stop merging.
-Never edit a member's code to make it merge; send it back.
+Merge the PRs that pass, one at a time, with a merge commit (gh pr merge <n> --merge; --admin only
+for my own PRs). After EACH merge: git pull && bash scripts/check_all.sh. If develop goes red, stop
+merging and revert through a PR as in docs/GIT_WORKFLOW.md (branch p1/revert-pr<n>, git revert -m 1,
+PR into develop). Never push to develop directly. Never edit a member's code to make it merge; send it
+back.
 </task>
 <log>
-Append a merge-window entry to docs/logs/INTEGRATION_LOG.md: time, each PR (merged / sent back / reverted,
+On a p1/... branch off origin/develop, append a merge-window entry to docs/logs/INTEGRATION_LOG.md
+and open a PR into develop for it: time, each PR (merged / sent back / reverted,
 and why), the develop SHA and suite counts after each merge, open conflicts, missing dependencies and
 contract requests across the team, with their IDs.
 </log>
@@ -289,8 +292,10 @@ machine. Mark each row met / not met. Don't round up.
 </verify>
 <report>
 Report plainly: is {GATE} met, yes or not-yet, with the unmet rows listed. If yes and only then:
-git checkout main && git pull && git merge --no-ff develop -m "Gate {GATE} close", git tag
-{GATE_TAG}, git push origin main --tags, and append a gate-close entry to docs/logs/INTEGRATION_LOG.md.
+append a gate-close entry to docs/logs/INTEGRATION_LOG.md by PR into develop, then open a PR from
+develop into main titled "Gate {GATE} close" and wait for its CI to go green. Ask me before merging it.
+On my yes: gh pr merge <n> --merge --admin, git checkout main && git pull --ff-only, git tag {GATE_TAG},
+git push origin {GATE_TAG}. Never push to main directly (docs/GIT_WORKFLOW.md).
 </report>
 ```
 

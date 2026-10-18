@@ -50,28 +50,49 @@ Commit messages: `P4-G2-T1: hash shipping-bill key with server salt`. The task I
 
 ## What the lead does in a merge window
 
+`main` and `develop` accept changes **only through pull requests** (rulesets, `REPO_SETUP.md`
+step 3). That includes the lead: the lead is on the bypass list "for pull requests only", so
+the lead can merge a PR without a second approval but can never push to `main`/`develop`
+directly. Bypass also skips the required checks, so the lead checks CI is green before merging.
+
 ```bash
 git checkout develop && git pull
 # for each PR in order p1 → p2 → p3 → p4 → p5 → p1:
 #   check the PR checklist and CODEOWNERS approvals, and that CI is green
-#   merge with "Create a merge commit" (keeps each person's history together)
+#   merge with a merge commit (keeps each person's history together):
+gh pr merge <n> --merge                 # add --admin only for the lead's own PRs (bypass)
 git pull && bash scripts/check_all.sh   # after EACH merge
-# red?  git revert -m 1 <merge-sha> && git push  ; log it ; tell the owner
 ```
 
-Then append the window's results to `docs/logs/INTEGRATION_LOG.md`.
+Red after a merge? Revert through a PR, then stop merging:
+
+```bash
+git checkout -b p1/revert-pr<n> origin/develop
+git revert -m 1 <merge-sha>
+git push -u origin p1/revert-pr<n>
+gh pr create --base develop --title "Revert PR <n>: develop red after merge" --body "<log ID>"
+gh pr merge --merge --admin             # once CI on the revert PR is green
+```
+
+Log it and tell the owner. Then append the window's results to
+`docs/logs/INTEGRATION_LOG.md` on a `p1/...` branch and merge that by PR too.
 
 ## Gate close (lead)
 
 ```bash
 git checkout develop && git pull && bash scripts/check_all.sh
-git checkout main && git pull && git merge --no-ff develop -m "Gate G<k> close"
-git tag g<k> && git push origin main --tags
+gh pr create --base main --head develop --title "Gate G<k> close" --body "<gate-close log ID>"
+gh pr merge <n> --merge --admin --subject "Gate G<k> close"   # after CI on the PR is green
+git checkout main && git pull --ff-only
+git tag g<k> && git push origin g<k>    # tags are lead-only (pre-push hook)
 ```
+
+Only `develop` may be the source of a PR into `main`; the `branch-rules` CI job fails any other.
 
 ## Never
 
 - `git push --no-verify`, `git push -f` to `main`/`develop`, `git push --mirror`
+- push to `main`/`develop` directly, even as the lead (use a PR)
 - merge `develop` into your branch (rebase instead)
 - commit secrets, keys, certs, salts, `network/env.sh`, `organizations/`
 - commit another package's lockfile
