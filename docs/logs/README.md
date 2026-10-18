@@ -48,7 +48,7 @@ Mark items resolved with `→ RESOLVED <date> <how>`; never delete them.
 - On develop at <sha>: yes / no
 - s14.id: <id>; hooks installed: yes / no
 - Install clean: yes / no (details)
-- Suites: python <counts> (expected 29 passed, 13 skipped, 16 xfailed) | <my package> <counts> (expected ...)
+- Suites: python <counts> (expected 32 passed, 13 skipped, 16 xfailed) | <my package> <counts> (expected ...)
 - Contract concerns (types I depend on): <none, or a list>
 - Machine (p3 especially): OS <...>, docker <...>, go <...>, jq <...>, bash <...>
 - **G0: YES / NOT-YET** (because ...)
