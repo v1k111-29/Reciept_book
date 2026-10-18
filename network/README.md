@@ -14,6 +14,19 @@ Checked against the cloned repo (npci/drunix 8090e0c) on 18 Oct 2026, docs/logs/
   source** into `drunix/build/bin`. `./network.sh prereq` does NOT do this: it downloads upstream
   Hyperledger Fabric's `install-fabric.sh`, which gives Fabric binaries and images, not Drunix.
 - The images `npcioss/drunix-peer|orderer|vscc:1.0.0` are published for linux/amd64 only.
+- **JavaScript/TypeScript chaincode:** the peer runs it in `npcioss/fabric-nodeenv:2.5`, which is not
+  published. Install fails with "pull access denied for npcioss/fabric-nodeenv". Before the first
+  deploy on any machine, run:
+  `docker pull hyperledger/fabric-nodeenv:2.5 && docker tag hyperledger/fabric-nodeenv:2.5 npcioss/fabric-nodeenv:2.5`
+  (log ISS-p3-8). That upstream Fabric's image is a correct substitute is [I]; Drunix's TypeScript
+  sample ran fine with it.
+- `deployCC` installs chaincode on the lite peers only. They execute it, and the committing peers
+  hold the blocks.
+- Fabric Gateway API (`@hyperledger/fabric-gateway` 1.13.0, tested 18 Oct 2026): served by both the
+  lite peers and the committing peers. Gateway default [I]: Org1 → `localhost:7051` (TLS host name
+  `peer0.org1.example.com`), Org2 → `localhost:9051` (`peer0.org2.example.com`). Client certificates are
+  in `test-network/organizations/peerOrganizations/orgN.example.com/users/User1@orgN.example.com/msp/`,
+  and the peer TLS CA is in `.../peers/peer0.orgN.example.com/tls/ca.crt`.
 
 ```bash
 git clone https://github.com/npci/drunix ../drunix          # next to this repo
@@ -40,7 +53,8 @@ source ./scripts/envVar.sh && setGlobals <org 1|2> <peer 0=lite|1=committing>
 peer channel getinfo -c receiptbook
 ```
 
-Open questions P3 must close at G1 (docs/UNKNOWNS.md): U-02 which peer serves the Fabric
-Gateway API; U-03 does `deployCC` accept `-ccep` and `-ccl typescript`; U-04 can the state DB
-be switched away from YugabyteDB; U-05 does `-c receiptbook` work or must we use `mychannel`
-(works, 18 Oct 2026). Record every finding in docs/logs/p3.md.
+G1 questions (docs/UNKNOWNS.md), status 18 Oct 2026 (evidence in docs/logs/p3.md):
+- U-02 (which peer serves the Fabric Gateway API): answered. Both peer types do.
+- U-03 (`-ccep` and `-ccl typescript`): answered. Both work, with the node runtime workaround above.
+- U-04 (another state DB): open. The compose files hard-code sqldb/YugabyteDB for every peer.
+- U-05 (`-c receiptbook`): answered. It works.
