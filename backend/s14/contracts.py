@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from datetime import date
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
@@ -84,7 +84,10 @@ class ErrorCode(StrEnum):
     WRONG_BANK = "WRONG_BANK"  # a bank other than the record's bank tried to write
     PRECONDITION_FAILED = "PRECONDITION_FAILED"  # a required earlier milestone is missing
     DUPLICATE_MILESTONE = "DUPLICATE_MILESTONE"  # a non-repeatable milestone already exists
-    ENDORSEMENT_FAILED = "ENDORSEMENT_FAILED"  # endorsement policy not satisfied
+    ENDORSEMENT_FAILED = "ENDORSEMENT_FAILED"  # endorsement policy not satisfied (also at commit)
+    # Fabric invalidated the transaction at commit because another write changed the same
+    # key first (commit code MVCC_READ_CONFLICT). Nothing was recorded: retry is safe (D-21).
+    MVCC_CONFLICT = "MVCC_CONFLICT"
     LEDGER_UNAVAILABLE = "LEDGER_UNAVAILABLE"  # gateway cannot reach Drunix
     # A submit was sent with a tx_id but its commit status is not known (e.g. timeout while
     # waiting for it); it may still commit. Never auto-retry: check the record first (D-20).
@@ -175,10 +178,16 @@ ERROR_HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.PRECONDITION_FAILED: 409,
     ErrorCode.DUPLICATE_MILESTONE: 409,
     ErrorCode.ENDORSEMENT_FAILED: 502,
+    ErrorCode.MVCC_CONFLICT: 409,
     ErrorCode.LEDGER_UNAVAILABLE: 503,
     ErrorCode.OUTCOME_UNKNOWN: 504,
     ErrorCode.INTERNAL: 500,
 }
+
+# Errors the backend may retry, a bounded number of times (the count is P4's choice). The
+# transaction was invalidated at commit, so a retry cannot record a milestone twice, REPEATABLE
+# ones included. OUTCOME_UNKNOWN is never here: that transaction may still commit. (D-21)
+RETRYABLE_ERRORS: frozenset[ErrorCode] = frozenset({ErrorCode.MVCC_CONFLICT})
 
 
 # ----------------------------------------------------------------------- models
@@ -317,7 +326,10 @@ class ErrorBody(_Model):
 
 
 class GatewayRequest(_Model):
-    """Backend (P4) -> gateway (P3). `identity` picks which org's credentials sign."""
+    """Backend (P4) -> gateway (P3). `identity` picks which org's credentials sign.
+
+    An `identity` with no configured credentials gets VALIDATION (422). (CCR-p3-4c, D-21)
+    """
 
     function: ChaincodeFunction
     args: tuple[str, ...] = ()
@@ -330,6 +342,15 @@ class GatewayResult(_Model):
     A failed submit carries `tx_id` whenever the gateway had assigned one. OUTCOME_UNKNOWN
     always carries it; the backend never auto-retries such a submit (a retried REPEATABLE
     milestone would be recorded twice) and checks the record instead. (CCR-p3-2, D-20)
+
+    `tx_id` is always null on /evaluate results (nothing is committed). (CCR-p3-4b, D-21)
+
+    Error mapping (CCR-p3-3, CCR-p3-4a, D-21). A chaincode error reaches the gateway in each
+    endorsing peer's details as "chaincode response 500, <ErrorCode>: <message>", not at the
+    start of the message. The gateway reads the code after that prefix in any peer's detail.
+    An unknown code or none gives INTERNAL. Peers that report different codes give
+    ENDORSEMENT_FAILED. Commit codes: MVCC_READ_CONFLICT gives MVCC_CONFLICT,
+    ENDORSEMENT_POLICY_FAILURE gives ENDORSEMENT_FAILED, any other gives INTERNAL.
     """
 
     ok: bool
@@ -348,11 +369,18 @@ class GatewayResult(_Model):
         return self
 
 
+class HealthResponse(_Model):
+    """Body of GET /health on the gateway and on the backend. (CCR-p3-4d, D-21)"""
+
+    status: Literal["ok"]
+    contracts_version: str
+
+
 # ------------------------------------------------------------------- HTTP routes
 
 # Backend routes (P4 implements, P5 calls). Path params in braces.
 BACKEND_ROUTES: dict[str, str] = {
-    "health": "GET /health",
+    "health": "GET /health",  # -> HealthResponse
     "create_record": "POST /records",  # CreateRecordRequest -> TxReceipt
     "record_milestone": "POST /records/{sb_hash}/milestones",  # MilestoneRequest -> TxReceipt
     "get_timeline": "GET /records/{sb_hash}",  # -> TimelineView
@@ -362,7 +390,7 @@ BACKEND_ROUTES: dict[str, str] = {
 
 # Gateway routes (P3 implements, P4 calls).
 GATEWAY_ROUTES: dict[str, str] = {
-    "health": "GET /health",
+    "health": "GET /health",  # -> HealthResponse
     "submit": "POST /submit",  # write transactions (endorse + order + commit)
     "evaluate": "POST /evaluate",  # read-only queries
 }
@@ -381,6 +409,7 @@ SCHEMA_MODELS: tuple[type[BaseModel], ...] = (
     ErrorBody,
     GatewayRequest,
     GatewayResult,
+    HealthResponse,
 )
 SCHEMA_ENUMS: tuple[type[StrEnum], ...] = (
     OrgRole,

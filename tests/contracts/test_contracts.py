@@ -164,3 +164,16 @@ def test_outcome_unknown_carries_the_tx_id():  # CCR-p3-2, D-20
     # any other failed submit may carry the tx_id it was given
     other = c.ErrorBody(code=c.ErrorCode.ENDORSEMENT_FAILED, message="policy")
     assert c.GatewayResult(ok=False, tx_id="t2", error=other).tx_id == "t2"
+
+
+def test_mvcc_conflict_is_the_only_retryable_error():  # CCR-p3-3, D-21
+    assert c.RETRYABLE_ERRORS == {c.ErrorCode.MVCC_CONFLICT}
+    assert c.ERROR_HTTP_STATUS[c.ErrorCode.MVCC_CONFLICT] == 409
+    assert c.ErrorCode.OUTCOME_UNKNOWN not in c.RETRYABLE_ERRORS
+
+
+def test_health_response_shape():  # CCR-p3-4d, D-21
+    assert c.HealthResponse(status="ok", contracts_version=c.CONTRACTS_VERSION).status == "ok"
+    with pytest.raises(ValidationError):
+        c.HealthResponse(status="down", contracts_version=c.CONTRACTS_VERSION)
+    assert c.HealthResponse in c.SCHEMA_MODELS

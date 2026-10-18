@@ -18,6 +18,7 @@ type Schema = {
   chaincode_args: Record<string, string[]>;
   chaincode_result: Record<string, string>;
   chaincode_writes: string[];
+  retryable_errors: string[];
   error_http_status: Record<string, number>;
   backend_routes: Record<string, string>;
   gateway_routes: Record<string, string>;
@@ -55,6 +56,7 @@ export function parityProblems(schema: Schema): string[] {
   eq("chaincode_args", C.CHAINCODE_ARGS, schema.chaincode_args);
   eq("chaincode_result", C.CHAINCODE_RESULT, schema.chaincode_result);
   eq("chaincode_writes", [...C.CHAINCODE_WRITES].sort(), schema.chaincode_writes);
+  eq("retryable_errors", [...C.RETRYABLE_ERRORS].sort(), schema.retryable_errors);
   eq("error_http_status", C.ERROR_HTTP_STATUS, schema.error_http_status);
   eq("backend_routes", C.BACKEND_ROUTES, schema.backend_routes);
   eq("gateway_routes", C.GATEWAY_ROUTES, schema.gateway_routes);

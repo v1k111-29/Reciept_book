@@ -56,7 +56,8 @@ export const ErrorCode = {
   WRONG_BANK: "WRONG_BANK",
   PRECONDITION_FAILED: "PRECONDITION_FAILED",
   DUPLICATE_MILESTONE: "DUPLICATE_MILESTONE",
-  ENDORSEMENT_FAILED: "ENDORSEMENT_FAILED",
+  ENDORSEMENT_FAILED: "ENDORSEMENT_FAILED", // also the ENDORSEMENT_POLICY_FAILURE commit code
+  MVCC_CONFLICT: "MVCC_CONFLICT", // invalidated at commit (MVCC_READ_CONFLICT); nothing recorded, retry is safe
   LEDGER_UNAVAILABLE: "LEDGER_UNAVAILABLE",
   OUTCOME_UNKNOWN: "OUTCOME_UNKNOWN", // submit sent with a tx_id, commit status unknown; never auto-retry
   INTERNAL: "INTERNAL", // unexpected gateway or chaincode failure (fallback; keep last)
@@ -123,10 +124,14 @@ export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   PRECONDITION_FAILED: 409,
   DUPLICATE_MILESTONE: 409,
   ENDORSEMENT_FAILED: 502,
+  MVCC_CONFLICT: 409,
   LEDGER_UNAVAILABLE: 503,
   OUTCOME_UNKNOWN: 504,
   INTERNAL: 500,
 };
+
+/** Errors the backend may retry, a bounded number of times. Never OUTCOME_UNKNOWN (D-21). */
+export const RETRYABLE_ERRORS: readonly ErrorCode[] = ["MVCC_CONFLICT"];
 
 export const BACKEND_ROUTES = {
   health: "GET /health",
@@ -225,6 +230,12 @@ export interface GatewayResult {
   error?: ErrorBody | null;
 }
 
+/** Body of GET /health on the gateway and on the backend (D-21). */
+export interface HealthResponse {
+  status: "ok";
+  contracts_version: string;
+}
+
 /** Field names of each model, checked against the JSON schema by the parity tests. */
 export const MODEL_FIELDS: Record<string, readonly string[]> = {
   MilestoneSubmission: ["sb_hash", "milestone", "occurred_on", "reference_hash", "customs_status"],
@@ -245,4 +256,5 @@ export const MODEL_FIELDS: Record<string, readonly string[]> = {
   ErrorBody: ["code", "message"],
   GatewayRequest: ["function", "args", "identity"],
   GatewayResult: ["ok", "tx_id", "payload", "error"],
+  HealthResponse: ["status", "contracts_version"],
 };
