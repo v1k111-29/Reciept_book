@@ -1,7 +1,6 @@
 # Who must approve changes to which paths. Later rules win.
-# p1 = @v1k111-29 (lead), p3 = @vishalbala-nps, p4 = @raghavvenkatraman.
-# p2 and p5 have no GitHub user yet: the lead owns their paths until they join
-# (docs/logs/p1.md ISS-p1-18). Swap @v1k111-29 for their usernames in the P2 and P5 blocks then.
+# p1 = @v1k111-29 (lead), p2 = @stitussamuel07-code, p3 = @vishalbala-nps,
+# p4 = @raghavvenkatraman, p5 = @sathvik-111.
 
 *                                   @v1k111-29
 
@@ -19,12 +18,12 @@
 /docs/                              @v1k111-29
 
 # P2: chaincode
-/chaincode/src/rules.ts             @v1k111-29
-/chaincode/src/receiptBook.ts       @v1k111-29
-/chaincode/src/index.ts             @v1k111-29
-/chaincode/test/                    @v1k111-29
-/chaincode/package.json             @v1k111-29
-/chaincode/package-lock.json        @v1k111-29
+/chaincode/src/rules.ts             @stitussamuel07-code
+/chaincode/src/receiptBook.ts       @stitussamuel07-code
+/chaincode/src/index.ts             @stitussamuel07-code
+/chaincode/test/                    @stitussamuel07-code
+/chaincode/package.json             @stitussamuel07-code
+/chaincode/package-lock.json        @stitussamuel07-code
 
 # P3: gateway + Drunix network
 /gateway/src/config.ts              @vishalbala-nps
@@ -46,17 +45,17 @@
 /uv.lock                            @raghavvenkatraman @v1k111-29
 
 # P5: frontend
-/frontend/src/App.tsx               @v1k111-29
-/frontend/src/api.ts                @v1k111-29
-/frontend/src/views/                @v1k111-29
-/frontend/src/components/           @v1k111-29
-/frontend/test/                     @v1k111-29
-/frontend/package.json              @v1k111-29
-/frontend/package-lock.json         @v1k111-29
+/frontend/src/App.tsx               @sathvik-111
+/frontend/src/api.ts                @sathvik-111
+/frontend/src/views/                @sathvik-111
+/frontend/src/components/           @sathvik-111
+/frontend/test/                     @sathvik-111
+/frontend/package.json              @sathvik-111
+/frontend/package-lock.json         @sathvik-111
 
 # Personal logs: each person owns their own file only
 /docs/logs/p1.md                    @v1k111-29
-/docs/logs/p2.md                    @v1k111-29
+/docs/logs/p2.md                    @stitussamuel07-code
 /docs/logs/p3.md                    @vishalbala-nps
 /docs/logs/p4.md                    @raghavvenkatraman
-/docs/logs/p5.md                    @v1k111-29
+/docs/logs/p5.md                    @sathvik-111
