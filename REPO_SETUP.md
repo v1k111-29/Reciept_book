@@ -4,7 +4,7 @@ Do this once, before anyone runs the G0 kickoff prompt.
 
 ## 1. Fill the placeholders
 
-- `.github/CODEOWNERS`: replace `@P1_GITHUB` … `@P5_GITHUB` with real GitHub usernames.
+- `.github/CODEOWNERS`: filled (p1 `@v1k111-29`, p2 `@stitussamuel07-code`, p3 `@vishalbala-nps`, p4 `@raghavvenkatraman`, p5 `@sathvik-111`). Send Write invites to p2 and p5 (step 4).
 - `scripts/team.conf`: `LEAD_ID=p1` (change only if your lead uses another id).
 - `docs/logs/README.md`: fill the id → name table.
 
