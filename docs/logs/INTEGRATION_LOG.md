@@ -80,3 +80,22 @@ tracks. Newest last.
   tag waits for the p3/p4 G0 contract concerns.
 - Gate status: G0 still not met (push test, p3/p4 reports). G1: contracts ready to freeze;
   network up (P3-G1) and U-02..U-05, U-07 still open.
+
+### 2026-10-19 18:16 | merge window 4 | develop before 47d4d26 (PR #16), then 95e236b (PR #15)
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #16 p3/g0-report | p3 | merged (by v1k111-29, 18 Oct 16:26 UTC) | 47d4d26 | not rerun here; only docs/logs/p3.md changed |
+| #15 p1/g1-contracts-v1 | p1 | merged (lead bypass, 18 Oct 16:37 UTC) | 95e236b | py 36/13s/16x / cc 11 / gw 4+5todo / fe 2+9todo |
+- #15: `gh pr merge 15 --merge --admin` after CI on the PR was green (5/5 checks); the ruleset
+  blocked a plain merge (review required). CI on develop 95e236b: green. This log PR then ran
+  `bash scripts/check_all.sh` on develop 95e236b: "all suites green".
+- Tag: annotated `contracts-v1.0.0` (tag object 5b5d0b5) on 95e236b, pushed. Contracts are frozen at
+  1.0.0 (D-20, D-21); every later change needs a CCR, a version bump and a DECISIONS entry (4.2).
+- 1.0.0 content: D-20 (`CHAINCODE_WRITES`, `OUTCOME_UNKNOWN`) and D-21 (`MVCC_CONFLICT` 409,
+  `RETRYABLE_ERRORS`, `HealthResponse`, answers to CCR-p3-4). New expected Python count on develop:
+  36 passed, 13 skipped, 16 xfailed; PROMPTS.md already updated in #15.
+- Teammates: rebase on develop 95e236b (REQ-p1-28). Requests: REQ-p1-30 and 33 (p3), REQ-p1-31 and
+  34 (p4), REQ-p1-32 (p5). p3's log still lists CCR-p3-3 and CCR-p3-4 as open; p3 marks them
+  answered by D-21 after rebasing.
+- Gate status: G1 contracts frozen and tagged. Still open for G0: p4's report (DEP-p1-29). Network up
+  (P3-G1) and U-02..U-05, U-07 still open.
