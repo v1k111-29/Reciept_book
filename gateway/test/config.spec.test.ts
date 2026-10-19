@@ -10,13 +10,13 @@ const env = {
 };
 
 describe("loadConfig (P3, G1)", () => {
-  it.fails("reads defaults and both identities", () => {
+  it("reads defaults and both identities", () => {
     const c = loadConfig(env);
     expect([c.port, c.channel, c.chaincode]).toEqual([8800, "receiptbook", "receiptbook"]);
     expect(c.identities.AD_BANK?.mspId).toBe("Org1MSP");
     expect(c.identities.EXPORTERS_BODY?.peerEndpoint).toBe("localhost:9051");
   });
-  it.fails("names the missing variable", () => {
+  it("names the missing variable", () => {
     const { S14_AD_BANK_KEY: _drop, ...partial } = env;
     expect(() => loadConfig(partial)).toThrow(/S14_AD_BANK_KEY/);
   });
