@@ -28,6 +28,11 @@ landed in `tests/integration/`. Without `S14_LIVE=1` all 13 live tests are skipp
 Gateway went from 4 to 17 passed on 19 Oct 2026, when P3-G1-T3 (`loadConfig`, PR #18) turned the
 2 `config.spec` cases into real tests and added 13 config tests.
 
+The G0 kickoff prompts below still use the G0 counts. On develop after merge window 6 (20 Oct 2026)
+the counts are: Python **64 passed, 13 skipped, 4 xfailed** (p4's hashing, assessment, routes,
+gateway client and seed tests, PRs #26 and #25); chaincode **28 passed** (rules.ts implemented, PR
+#28); gateway and frontend unchanged.
+
 ---
 
 ## A. G0 kickoff prompts (one per person, read-only except for the report)

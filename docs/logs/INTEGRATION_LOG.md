@@ -121,3 +121,31 @@ tracks. Newest last.
 - Gate status: G0 not declared: 3 of 5 own reports in (p1, p3, p5); p4 missing, p2 rerun pending;
   push test not run. G1: contracts tagged (contracts-v1.0.0); P3-G1-T1..T3 done; U-02..U-05 and U-11
   settled; still open P1-G1-T2 (U-01), P2-G1-T1, P2-G1-T2 (U-07), P4-G1-T1, P5-G1-T1.
+
+### 2026-10-20 | merge window 6 | develop before 6e1b13c, after this PR
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #26 p4/g2-hashing | p4 | merged (by v1k111-29, 20 Oct 16:39 UTC) | 932bf76 | py 62/13s/4x (tested together with #30 before merging) |
+| #28 p2/g1-rules | p2 | merged (by v1k111-29, 20 Oct 16:39 UTC) | 8115921 | cc 28 passed, typecheck clean |
+| #30 p2/g1-deploy | p2 | merged (by v1k111-29, 20 Oct 16:39 UTC); stacked on #28, adds log lines only | 5e1a0f7 | as #28 |
+| #24 p4/g0-report | p4 | merged through this PR (p1/g1-merge-logs, D-25) | this PR | docs/logs/p4.md only |
+| #25 p4/g1-seed-generator | p4 | merged through this PR (D-25) | this PR | py 64/13s/4x (+2 seed tests) |
+| #27 p2/g0-report | p2 | merged through this PR (D-25) | this PR | docs/logs/p2.md only |
+- After #26, #28 and #30, PRs #24, #25 and #27 conflicted only in the owner's own log
+  (`docs/logs/p4.md`, `docs/logs/p2.md`): each PR appends a session entry at the same place.
+  The lead resolved them on p1/g1-merge-logs instead of waiting for the owners to rebase (D-25).
+  CNF-p1-24, CNF-p1-25, CNF-p1-27: kept both sides word for word, oldest entry first ("newest
+  last"). Diff vs develop in the two logs is additions only: p4.md +40 (#24 29 + #25 11), p2.md +56
+  (#27). One follow-up commit put p4's 12:50 entry after its 12:27 entry. No code file conflicted.
+- `bash scripts/check_all.sh` on p1/g1-merge-logs: "all suites green". py 64/13s/4x / cc 28 /
+  gw 17+5todo / fe 2+9todo. PROMPTS.md now gives these develop counts next to the G0 counts.
+- Review notes (none blocking): #26 also adds the routes, the gateway client and G3's `assess`
+  (scope beyond its title). In #26, an OUTCOME_UNKNOWN create counts as success when the record
+  exists, even if an earlier transaction created it (the receipt's `tx_id` may then be wrong).
+  CCR-p4-1 (whitespace-only identifiers) and CCR-p4-2 (`GatewayResult.payload` validation) still
+  need the lead's answer.
+- Open for the lead: REQ-p2-1 (close U-07 in UNKNOWNS.md with p2's 15:55 evidence), REQ-p4-1
+  (`check_all.sh` must fail when `uv` is missing), CCR-p4-1, CCR-p4-2. p2 and p4: rebase on develop
+  after this PR; your log on develop now holds all your entries.
+- Gate status: G0 reports now in from all five (p4: NOT-YET pending CCR-p4-1/2). G1: P2-G1-T1,
+  P2-G1-T2 (U-07 evidence), P4-G1-T1 done; still open P1-G1-T2 (U-01), P5-G1-T1, U-07 close.
