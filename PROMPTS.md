@@ -20,11 +20,13 @@ Placeholders used:
 |---|---|---|
 | Python | `uv sync && uv run pytest` | **36 passed, 13 skipped, 16 xfailed** (1 known warning) |
 | Chaincode | `cd chaincode && npm ci && npm run typecheck && npm test` | **11 passed** (2 contract/parity + 9 `it.fails` specs) |
-| Gateway | `cd gateway && npm ci && npm run typecheck && npm test` | **4 passed, 5 todo** |
+| Gateway | `cd gateway && npm ci && npm run typecheck && npm test` | **17 passed, 5 todo** |
 | Frontend | `cd frontend && npm ci && npm run typecheck && npm test` | **2 passed, 9 todo** |
 
 Python skipped went from 2 to 13 on 18 Oct 2026, when the live tests for P1-G2-T1 and P1-G3-T1
 landed in `tests/integration/`. Without `S14_LIVE=1` all 13 live tests are skipped.
+Gateway went from 4 to 17 passed on 19 Oct 2026, when P3-G1-T3 (`loadConfig`, PR #18) turned the
+2 `config.spec` cases into real tests and added 13 config tests.
 
 ---
 
@@ -46,7 +48,7 @@ unclear, wrong or missing now, before the G1 freeze, not after.
 Check .github/CODEOWNERS has no @P*_GITHUB placeholders left and that the ruleset on develop
 matches REPO_SETUP.md step 3.
 Run: uv sync && uv run pytest (expect 36 passed, 13 skipped, 16 xfailed).
-Run: bash scripts/check_all.sh (expect chaincode 11 passed; gateway 4 passed, 5 todo; frontend
+Run: bash scripts/check_all.sh (expect chaincode 11 passed; gateway 17 passed, 5 todo; frontend
 2 passed, 9 todo; and "all suites green").
 Do not change any file except my log in the report step.
 </verify>
@@ -112,7 +114,7 @@ On this machine, check (read-only, install nothing) and write down the exact out
 uname -a; docker --version; go version; jq --version; bash --version | head -1. This tells us whether
 this can be the host machine for the Drunix network.
 Run: uv sync && uv run pytest (expect 36 passed, 13 skipped, 16 xfailed).
-Run: cd gateway && npm ci && npm run typecheck && npm test (expect 4 passed, 5 todo).
+Run: cd gateway && npm ci && npm run typecheck && npm test (expect 17 passed, 5 todo).
 Do not change any file except my log in the report step.
 </verify>
 <report>

@@ -6,7 +6,7 @@ export shipping bill's milestones, kept on **Drunix** (NPCI's Hyperledger Fabric
 Customs' ICES records disagree, everyone can see which step is missing, who signed what, and
 since when. The problem and its evidence are in [`docs/PROBLEM.md`](docs/PROBLEM.md).
 
-**Status:** scaffold (contracts 1.0.0, frozen at G1, D-20; gate G0 not yet declared: p4 G0 report outstanding). No feature is built yet;
+**Status:** scaffold (contracts 1.0.0, frozen at G1, D-20; gate G0 not yet declared: p4 and p2 G0 reports outstanding). No feature is built yet;
 the specs that define each feature are in the test folders.
 
 ## Start here

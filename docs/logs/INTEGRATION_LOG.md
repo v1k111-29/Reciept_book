@@ -99,3 +99,25 @@ tracks. Newest last.
   answered by D-21 after rebasing.
 - Gate status: G1 contracts frozen and tagged. Still open for G0: p4's report (DEP-p1-29). Network up
   (P3-G1) and U-02..U-05, U-07 still open.
+
+### 2026-10-20 | merge window 5 | develop before 95e236b, after 885c5e9
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #17 p3/g1-network-up | p3 | merged (by v1k111-29, 19 Oct 13:08 UTC) | 577268c | not rerun per merge; network/ and p3 log only |
+| #18 p3/g1-config | p3 | merged (by v1k111-29, 19 Oct 13:08 UTC) | bcc305d | gateway 17 passed, 5 todo (see below) |
+| #20 p1/g1-github-ids | p1 | merged (by v1k111-29, 19 Oct 13:24 UTC) | 3606cad | docs and CODEOWNERS only |
+| #19 p1/g1-merge-window-4 | p1 | shown as merged: its only commit b778d1b came in with #20 | 3606cad | n/a |
+| #21 p5/g0-report | p5 | merged (by v1k111-29, 20 Oct 06:03 UTC) | 885c5e9 | docs/logs/p5.md only |
+- This log PR ran `bash scripts/check_all.sh` on develop 885c5e9: "all suites green". py 36/13s/16x /
+  cc 11 / gw 17+5todo / fe 2+9todo. Gateway went from 4 to 17 passed with #18 (2 config specs now
+  real tests, 13 new config tests); PROMPTS.md expected counts updated in this PR.
+- #21 is p5's own G0 report (G0: YES, py 36/13s/16x, fe 2+9todo); it replaces the lead's stand-in
+  report (D-22).
+- Lead records in this PR: UNKNOWNS U-02, U-03, U-05, U-11 CLOSED and U-04 settled (D-23) from p3's
+  evidence (REQ-p3-1, REQ-p3-3); D-22 (D-19 ends, p2/p5 own their slices); D-24 (vitest advisories,
+  ISS-p3-3, accepted until G4).
+- Open across team: DEP-p1-29 (p4 G0 report); REQ-p1-35 (p2: own G0 rerun, P2-G1-T1, P2-G1-T2/U-07,
+  REQ-p3-2); REQ-p1-36 (p5: P5-G1-T1, push test DEP-p1-3); P4-G1-T1 (p4); U-01 (p1).
+- Gate status: G0 not declared: 3 of 5 own reports in (p1, p3, p5); p4 missing, p2 rerun pending;
+  push test not run. G1: contracts tagged (contracts-v1.0.0); P3-G1-T1..T3 done; U-02..U-05 and U-11
+  settled; still open P1-G1-T2 (U-01), P2-G1-T1, P2-G1-T2 (U-07), P4-G1-T1, P5-G1-T1.
