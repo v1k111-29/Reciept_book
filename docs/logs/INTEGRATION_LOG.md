@@ -122,7 +122,7 @@ tracks. Newest last.
   push test not run. G1: contracts tagged (contracts-v1.0.0); P3-G1-T1..T3 done; U-02..U-05 and U-11
   settled; still open P1-G1-T2 (U-01), P2-G1-T1, P2-G1-T2 (U-07), P4-G1-T1, P5-G1-T1.
 
-### 2026-10-20 | merge window 6 | develop before 6e1b13c, after this PR
+### 2026-10-20 | merge window 6 | develop before 72ab442 (PR #23), after this PR
 | PR | Author | Result | develop after | Suites after merge |
 |---|---|---|---|---|
 | #26 p4/g2-hashing | p4 | merged (by v1k111-29, 20 Oct 16:39 UTC) | 932bf76 | py 62/13s/4x (tested together with #30 before merging) |
