@@ -5,7 +5,7 @@ Rule: nobody codes as if an unknown were known. Close an item by writing the evi
 
 | ID | Unknown | Why it matters | Owner | Close by | How to close | Status |
 |---|---|---|---|---|---|---|
-| U-01 | Hackathon timeline, our challenge code, judging criteria, prototype requirement, official FAQ | Gate dates; whether "admit a database baseline" is acceptable. Project Axis's repo says pitch 25 Oct, prototype 10-22 Nov [S] | p1 | G1 | ask the organisers (India Blockchain Forum, per Project Axis's README); get the FAQ | OPEN (deadline 21 Oct per lead; partial evidence below) |
+| U-01 | Our challenge code, judging criteria, prototype requirement, official FAQ | Whether "admit a database baseline" is acceptable; what the prototype must show | p1 | G1 | ask the organisers (India Blockchain Forum, per Project Axis's README); get the FAQ | OPEN (partial evidence below) |
 | U-02 | Which Drunix peer serves the Fabric Gateway API (lite or committing), and does `@hyperledger/fabric-gateway` 1.13 work with it | The whole gateway design (D-04) | p3 | G1 | connect from the gateway to each peer; log the result | CLOSED 18 Oct 2026 (p3; evidence below) |
 | U-03 | Does Drunix `network.sh deployCC` accept `-ccep` (endorsement policy) and `-ccl typescript` | E3 and deployment | p3 | G1 | read `network.sh` / run it; log | CLOSED 18 Oct 2026 (p3; TypeScript needs the ISS-p3-8 workaround; evidence below) |
 | U-04 | Can the state DB be something other than YugabyteDB (issue #8: non-atomic SQL + Redis writes) | Reliability of commits | p3 | G1 | try the `-s` options; log | SETTLED BY DECISION 18 Oct 2026 (D-23: keep YugabyteDB); other state DBs untested |
@@ -22,29 +22,25 @@ Rule: nobody codes as if an unknown were known. Close an item by writing the evi
 
 ### U-01 (p1, 18 Oct 2026): partial, still OPEN
 
-Public web search only. The official timeline, our challenge code, judging criteria and the
+Public web search only. Our challenge code, judging criteria and the
 FAQ were **not** found on any public page; they are probably on the login-only portal
 (app.innovationcarnival.io) [I]. Someone registered must read them there and paste the source.
 
 - Official listing (Internshala, NPCI x Citi): registration 10 to 30 Sep 2026; solutions
   "should align with the broad pillars of innovation, scalability, and real-world impact";
-  participants are "expected to ideate, collaborate and build working prototypes". No dates
-  after registration, no challenge codes, no scoring rubric [P].
+  participants are "expected to ideate, collaborate and build working prototypes". No
+  challenge codes, no scoring rubric [P].
   https://internshala.com/competitions/drunix-hackathon-2026-by-npci-x-citi/
 - Innovation Carnival "current challenges" page: five tracks (AI & Fraud Detection, Real-Time
-  Payments, Financial Inclusion, Cross-Border Remittances, Open Finance APIs). No codes,
-  dates or criteria [P]. https://innovationcarnival.io/current-challenges/
+  Payments, Financial Inclusion, Cross-Border Remittances, Open Finance APIs). No codes
+  or criteria [P]. https://innovationcarnival.io/current-challenges/
 - Project Axis README (another team): "organised by the India Blockchain Forum"; challenge
-  code CHL-7007 (Cross-Border Remittances); timeline 9 Oct kickoff, **25 Oct pitch
-  submission**, 10 Nov top 25, 10-22 Nov prototype build, 22 Nov final submission, 27 Nov
-  top 5, 4 Dec grand finale (hybrid, Pune / Zoom). It also cites the hackathon FAQ for a
+  code CHL-7007 (Cross-Border Remittances). It also cites the hackathon FAQ for a
   demo flow (Problem, User Journey, Solution, Architecture, Drunix Flow, Working Prototype,
   Impact) and for IP staying with participants [S]. https://github.com/ferroflux/project-axis
-- Still unknown: our challenge code and track, whether the dates above apply to our track,
-  the judging rubric, and what the prototype must show.
-- 18 Oct 2026, the lead (p1): **our deadline is 21 Oct 2026** [source: the lead; which
-  deliverable is due (pitch or prototype) and the official page to cite are still to be added].
-  This replaces the 25 Oct date from Project Axis for planning.
+- Still unknown: our challenge code and track, the judging rubric, and what the prototype
+  must show.
+- 20 Oct 2026: timeline and deadline removed from this item at the lead's request.
 
 ### U-02, U-03, U-04, U-05, U-07, U-11 (p3's network sessions, recorded by p1, 20 Oct 2026)
 
