@@ -43,6 +43,23 @@ bash network/deploy.sh    # our chaincode
 bash network/down.sh      # stop; deletes containers, volumes and all crypto material
 ```
 
+Start the gateway against the network (it reads S14_* from `network/gateway-env.sh`):
+```bash
+source network/gateway-env.sh && (cd gateway && npm run dev)   # gateway on :8800
+curl -s localhost:8800/health
+```
+
+**After the host sleeps, check the state DBs before trusting the network** (ISS-p3-9, 21 Oct 2026).
+YugabyteDB's tserver can die and restart inside its container while the container stays "Up".
+Afterwards that DB may reject every write ("Attempted to commit expired transaction"), and the
+committing peer **panics** on the next block and exits. Check:
+```bash
+docker exec yugabyte-org1 grep -c "tserver died" /root/var/logs/yugabyted.log   # also yugabyte-org2
+docker ps -a --filter name=cp.org --format '{{.Names}} {{.Status}}'             # both must be Up
+```
+If either shows a death, or a `cp.org*` peer has exited: `bash network/down.sh && bash network/up.sh`,
+then redeploy. Restarting the peer alone did not help on 21 Oct.
+
 macOS on Apple Silicon also works for the test network (verified 18 Oct 2026; not a supported
 Drunix platform):
 - Install Bash 5 with `brew install bash`. Our scripts and `network.sh` use `#!/usr/bin/env bash`,
