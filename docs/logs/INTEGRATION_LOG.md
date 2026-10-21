@@ -149,3 +149,30 @@ tracks. Newest last.
   after this PR; your log on develop now holds all your entries.
 - Gate status: G0 reports now in from all five (p4: NOT-YET pending CCR-p4-1/2). G1: P2-G1-T1,
   P2-G1-T2 (U-07 evidence), P4-G1-T1 done; still open P1-G1-T2 (U-01), P5-G1-T1, U-07 close.
+
+### 2026-10-21 | merge window 7 | develop before 5badc1b, after d093bb3
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #32 p1/g1-close-gates | p1 | merged (by v1k111-29, 21 Oct 16:14 UTC) | b60e0c6 | docs and scripts/check_all.sh only |
+| #33 p3/g1-macos-compose | p3 | merged (by v1k111-29, 21 Oct 16:15 UTC) | f5f5ece | network/README.md and p3 log only |
+| #34 p3/g2-submit-route | p3 | merged (by v1k111-29, 21 Oct 16:15 UTC) | 28e86cb | gw 54 passed, 0 todo |
+| #36 p5/g1-ui-shell | p5 | merged (by v1k111-29, 21 Oct 16:17 UTC) | d093bb3 | fe 6 passed, 9 todo |
+- All four PRs had green CI. This log PR ran `bash scripts/check_all.sh` on develop d093bb3:
+  "all suites green". py 64/13s/4x / cc 28 / gw 54 passed, 0 todo / fe 6 passed, 9 todo.
+  Gateway went from 17+5todo to 54 with #34 (the 5 todo specs now real tests, plus route and
+  error-mapping tests on a fake ledger). Frontend went from 2 to 6 passed with #36 (App render
+  tests for the four views); the 9 todo are still `test/api.spec.test.ts`. PROMPTS.md updated.
+- Review note: #34 carried a merge commit from develop (0254432, "Merge branch 'develop' into
+  p3/g2-submit-route"). AGENTS.md section 3 says to rebase instead. It only brought develop's own
+  commits, so it was merged as is. Open PR #35 (p3/g2-ledger) has the same kind of commit (d9a2d3c);
+  p3 to rebase it before merge.
+- Not merged: #35 p3/g2-ledger (open, waits for p3's rebase and CI). p2/g2-chaincode (P2-G2-T1)
+  has no open PR: #29 is closed and the branch is 27 commits behind develop; p3's live `/submit`
+  (DEP-p3-2) waits on it.
+- Open for the lead: REQ-p3-7 (ISS-p3-9 is the D-23 revisit trigger: YugabyteDB tserver deaths
+  during host sleep led to expired-transaction writes and a committing-peer panic on Org2).
+- Gate status: **G1 declared.** Every item of the G1 "done when" row in IMPLEMENTATION_PLAN.md 1.3
+  is met: contracts-v1.0.0 tagged; Drunix network up on the host (P3-G1-T1..T3); stub chaincode
+  deployed (P2-G1-T2); U-02 to U-05 and U-07 answered. All G1 task rows are done except
+  P1-G1-T2 (U-01), which is carried forward and does not block G2 work. G0 is still not declared:
+  p4's report is NOT-YET until REQ-p1-37 (D-26) lands, and the push test (DEP-p1-3) has not run.
