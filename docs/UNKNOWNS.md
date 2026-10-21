@@ -11,7 +11,7 @@ Rule: nobody codes as if an unknown were known. Close an item by writing the evi
 | U-04 | Can the state DB be something other than YugabyteDB (issue #8: non-atomic SQL + Redis writes) | Reliability of commits | p3 | G1 | try the `-s` options; log | SETTLED BY DECISION 18 Oct 2026 (D-23: keep YugabyteDB); other state DBs untested |
 | U-05 | Does a custom channel name (`receiptbook`) work, or only `mychannel` | Scripts and config | p3 | G1 | `network/up.sh`; log | CLOSED 18 Oct 2026 (p3; evidence below) |
 | U-06 | Can a third org be added to the test network (Fabric's `addOrg3` equivalent) | N2, N3 | p3 | after G3 | inspect the test-network folder | OPEN |
-| U-07 | Does TypeScript chaincode build and run on Drunix in practice (only Go samples were seen in the repo) | D-02 | p2 + p3 | G1 | deploy the stub chaincode; log | OPEN (evidence from p3 below; closes when p2 deploys our stub, P2-G1-T2) |
+| U-07 | Does TypeScript chaincode build and run on Drunix in practice (only Go samples were seen in the repo) | D-02 | p2 + p3 | G1 | deploy the stub chaincode; log | CLOSED 20 Oct 2026 (p2; evidence below) |
 | U-08 | Private data collections on Drunix: the docs mention a KeyDB transient store, but "private data collections" was not on the pages read; the test network has an `asset-transfer-private-data` example | N1 | p2 | after G3 | deploy the sample with `-cccg`; log | OPEN |
 | U-09 | GitHub Actions versions (`actions/checkout@v4`, `actions/setup-node@v4`, `astral-sh/setup-uv@v5`) and which push restrictions our repo plan offers | CI and branch protection | p1 | G0 | first CI run; settings screen | OPEN |
 | U-10 | Which team member is the lead, and is the lead p1 | D-10 | user | G0 | user confirms | OPEN |
@@ -42,6 +42,38 @@ FAQ were **not** found on any public page; they are probably on the login-only p
   must show.
 - 20 Oct 2026: timeline and deadline removed from this item at the lead's request.
 
+### U-01 (p1, 20 Oct 2026, web research): still OPEN
+
+Public web search and fetch only; no login. None of the four items (challenge code, judging
+criteria, prototype requirement, official FAQ for this hackathon) is confirmed by an official
+organiser or NPCI page. All four remain open.
+
+- Organiser site (Innovation Carnival) lists "Drunix Hackathon 2026" as its current challenge:
+  "launched by NPCI", "taken forward in collaboration with Citi". Five tracks only; no
+  challenge codes, no criteria, no dates. Register link goes to the login-only portal
+  https://app.innovationcarnival.io/login. https://innovationcarnival.io/current-challenges/
+- Same site, homepage FAQ: generic to the platform, not this hackathon. On juries: "review
+  assigned submissions, score solutions, provide expert feedback". No rubric, no prototype or
+  IP rule. https://innovationcarnival.io/
+- "Supported By" on that homepage shows logos only; one has alt text "IBF-Logo 3". That IBF
+  is the India Blockchain Forum named in Project Axis's README is [I]; no public page found
+  that links an India Blockchain Forum to this hackathon [U].
+- NPCI: no Drunix hackathon page found on npci.org.in. NPCI's X post announcing the hackathon
+  (https://x.com/NPCI_NPCI/status/2098992005544296488) could not be fetched (HTTP 402) [U].
+- Global Fintech Fest hackathon page lists PSB, SBI, SEBI and NABARD hackathons, not Drunix.
+  https://www.globalfintechfest.com/gff-hackathons
+- Internshala listing (not organiser-run) re-checked: shows status "Closed", format "Online";
+  same pillars quote as 18 Oct; no codes, rubric, prototype rule, FAQ or IP terms [P].
+  https://internshala.com/competitions/drunix-hackathon-2026-by-npci-x-citi/
+- Other teams' repos: nexus-pvp calls itself a "Production-Grade Prototype" submission; no
+  challenge code or rules [S]. https://github.com/Froglodyte/nexus-pvp. Project Axis's
+  CHL-7007 and FAQ citations (18 Oct entry) remain the only source for codes and FAQ, and
+  are not official [S].
+- Remaining: challenge code (and track) for our challenge [U]; judging criteria beyond the
+  "innovation, scalability, real-world impact" pillars [U]; what the prototype must show [U];
+  the official FAQ text [U]. All four are probably on app.innovationcarnival.io behind login
+  [I]; a registered team member must copy them from there.
+
 ### U-02, U-03, U-04, U-05, U-07, U-11 (p3's network sessions, recorded by p1, 20 Oct 2026)
 
 Source for every item: `docs/logs/p3.md`, sessions 2026-10-18 20:44, 22:42 and 22:46 (command
@@ -70,6 +102,22 @@ output quoted there). Drunix commit 8090e0c, built from source; images `npcioss/
 - **U-04 SETTLED BY DECISION (D-23), not answered.** `-s` only decides whether YugabyteDB starts;
   the compose files hard-code `sqldb` (YugabyteDB) and KeyDB for every peer. Another state DB
   would mean editing NPCI's compose files. Not tried.
-- **U-07 still OPEN.** Evidence so far: Drunix's TypeScript sample chaincode builds and runs on
-  Drunix peers with the ISS-p3-8 workaround. Our own stub has not been deployed. p2 closes it
-  with P2-G1-T2 (REQ-p3-2 passes to p2 under D-22).
+- **U-07 CLOSED.** (p2, 20 Oct 2026; source `docs/logs/p2.md`, session 2026-10-20 15:55,
+  P2-G1-T2, REQ-p2-1). p2 deployed our stub chaincode (branch `p2/g1-rules`, `receiptBook.ts`
+  still throws NotImplemented) on a Drunix test network on p2's own Mac (macOS arm64, MacBook
+  Air, Docker Desktop 29.9.1), Drunix 8090e0c built from source, amd64 images
+  `npcioss/drunix-peer|orderer|vscc:1.0.0` under emulation, with the ISS-p3-8 workaround
+  (`docker tag hyperledger/fabric-nodeenv:2.5 npcioss/fabric-nodeenv:2.5`). Commands:
+  `bash network/up.sh` then `bash network/deploy.sh`.
+  - `peer lifecycle chaincode commit ... --name receiptbook --version 1.0 --sequence 1
+    --signature-policy 'AND('Org1MSP.peer','Org2MSP.peer')'` gave "committed with status
+    (VALID)" at localhost:7061 and :9061; querycommitted: "Approvals: [Org1MSP: true, Org2MSP:
+    true]".
+  - `peer chaincode query -C receiptbook -n receiptbook` with
+    `org.hyperledger.fabric:GetMetadata` (Org1 lite peer) returned contract `ReceiptBook` with
+    CreateRecord and RecordMilestone tagged SUBMIT, GetRecord and ListRecords tagged EVALUATE.
+  - `GetRecord` returned `status:500 message:"NotImplemented: P2 G2"`: our own TypeScript code
+    ran on a Drunix peer.
+  - `docker ps`: `dev-peer0.org1.example.com-receiptbook_1.0-…` and `dev-peer0.org2…` Up.
+  - This ran with the ISS-p3-8 node-runtime workaround; without it is untested, and that the
+    substitute image is correct remains [I]. p2 answered REQ-p3-2: keep the workaround for now.
