@@ -14,6 +14,12 @@ Checked against the cloned repo (npci/drunix 8090e0c) on 18 Oct 2026, docs/logs/
   source** into `drunix/build/bin`. `./network.sh prereq` does NOT do this: it downloads upstream
   Hyperledger Fabric's `install-fabric.sh`, which gives Fabric binaries and images, not Drunix.
 - The images `npcioss/drunix-peer|orderer|vscc:1.0.0` are published for linux/amd64 only.
+- **The standalone `docker-compose` command is required** on every OS. `network.sh up` and `down`
+  start and stop YugabyteDB and KeyDB with a hard-coded `docker-compose -f scripts/yugabyte/compose.yaml`
+  (hyphenated). The `docker compose` plugin alone is not enough. Without it, up.sh prints
+  "docker-compose: command not found", no DB containers start, and every peer exits ("lookup
+  hlf_keydb_org1msp ... no such host"). Check with `command -v docker-compose` (found by p2,
+  ISS-p2-8).
 - **JavaScript/TypeScript chaincode:** the peer runs it in `npcioss/fabric-nodeenv:2.5`, which is not
   published. Install fails with "pull access denied for npcioss/fabric-nodeenv". Before the first
   deploy on any machine, run:
@@ -58,6 +64,9 @@ macOS on Apple Silicon also works for the test network (verified 18 Oct 2026; no
 Drunix platform):
 - Install Bash 5 with `brew install bash`. Our scripts and `network.sh` use `#!/usr/bin/env bash`,
   so Bash 5 must come before `/bin/bash` on PATH.
+- If `command -v docker-compose` finds nothing, run `brew install docker-compose` (REQ-p2-2). Some
+  Docker Desktop installs already link it into `/usr/local/bin/docker-compose` (p3's Mac); others
+  don't (p2's Mac).
 - Pull the amd64 images first: `docker pull --platform linux/amd64 npcioss/drunix-peer:1.0.0`
   (and the same for `drunix-orderer` and `drunix-vscc`). Docker Desktop runs them under
   emulation, and compose prints a platform warning for each one.
