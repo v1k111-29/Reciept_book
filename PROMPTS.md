@@ -33,6 +33,11 @@ the counts are: Python **64 passed, 13 skipped, 4 xfailed** (p4's hashing, asses
 gateway client and seed tests, PRs #26 and #25); chaincode **28 passed** (rules.ts implemented, PR
 #28); gateway and frontend unchanged.
 
+On develop after merge window 7 (21 Oct 2026, d093bb3) the counts are: Python **64 passed,
+13 skipped, 4 xfailed** and chaincode **28 passed** (unchanged); gateway **54 passed, 0 todo**
+(`/submit` and `/evaluate` routes with error mapping on a fake ledger, PR #34); frontend
+**6 passed, 9 todo** (UI shell render tests, PR #36).
+
 ---
 
 ## A. G0 kickoff prompts (one per person, read-only except for the report)
