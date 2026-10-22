@@ -192,3 +192,15 @@ tracks. Newest last.
 - REQ-p1-39 (p2: rebase p2/g2-chaincode, open a new PR for P2-G2-T1) sent as issue #38.
 - Gate status: G1 declared (unchanged). G2 work is open; it waits on P2-G2-T1 (issue #38) for the
   live `/submit` call (DEP-p3-2). G0 still not declared (REQ-p1-37, DEP-p1-3).
+
+### 2026-10-22 | G0 note: develop is not protected on GitHub | develop at 0617d68
+- ISS-p1-21: GitHub does not protect `develop`. The repo is private on the lead's free personal
+  account (`private=true`, owner type User). `GET /repos/v1k111-29/drunix-hackathon/rulesets` and
+  `GET .../branches/develop/protection` return 403 "Upgrade to GitHub Pro or make this repository
+  public to enable this feature."; `GET .../branches/develop` reports `protected=false`. D-16 kept the
+  repo public so that the `protect-develop` ruleset (merge window 1 entry, 18 Oct 15:05) would apply; that ruleset
+  is no longer enforced. A push that skips the pre-push hook would land on `develop`.
+- D-28: G0's push test is hook-only. Sent to p5 as issue #41 (DEP-p1-3), with `--no-verify`
+  forbidden and an instruction to stop and report at once if a push is accepted.
+- Other G0 item: REQ-p1-37 sent to p4 as issue #40 (D-26 checks, then G0: YES).
+- Gate status: G0 not declared; waits for #40 (p4) and #41 (p5). G1 declared (unchanged).
