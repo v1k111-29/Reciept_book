@@ -5,7 +5,7 @@ Rule: nobody codes as if an unknown were known. Close an item by writing the evi
 
 | ID | Unknown | Why it matters | Owner | Close by | How to close | Status |
 |---|---|---|---|---|---|---|
-| U-01 | Our challenge code, judging criteria, prototype requirement, official FAQ | Whether "admit a database baseline" is acceptable; what the prototype must show | p1 | G1 | ask the organisers (India Blockchain Forum, per Project Axis's README); get the FAQ | OPEN (partial evidence below) |
+| U-01 | Our challenge code, judging criteria, prototype requirement, official FAQ | Whether "admit a database baseline" is acceptable; what the prototype must show | p1 | G1 | ask the organisers (India Blockchain Forum, per Project Axis's README); get the FAQ | OPEN: challenge code, organiser and themes confirmed from the portal (22 Oct); judging criteria, prototype requirement and FAQ still open |
 | U-02 | Which Drunix peer serves the Fabric Gateway API (lite or committing), and does `@hyperledger/fabric-gateway` 1.13 work with it | The whole gateway design (D-04) | p3 | G1 | connect from the gateway to each peer; log the result | CLOSED 18 Oct 2026 (p3; evidence below) |
 | U-03 | Does Drunix `network.sh deployCC` accept `-ccep` (endorsement policy) and `-ccl typescript` | E3 and deployment | p3 | G1 | read `network.sh` / run it; log | CLOSED 18 Oct 2026 (p3; TypeScript needs the ISS-p3-8 workaround; evidence below) |
 | U-04 | Can the state DB be something other than YugabyteDB (issue #8: non-atomic SQL + Redis writes) | Reliability of commits | p3 | G1 | try the `-s` options; log | SETTLED BY DECISION 18 Oct 2026 (D-23: keep YugabyteDB); other state DBs untested |
@@ -73,6 +73,34 @@ organiser or NPCI page. All four remain open.
   "innovation, scalability, real-world impact" pillars [U]; what the prototype must show [U];
   the official FAQ text [U]. All four are probably on app.innovationcarnival.io behind login
   [I]; a registered team member must copy them from there.
+
+### U-01 (p1, 22 Oct 2026, organiser portal): partly answered, still OPEN
+
+Source: our challenge page on the organiser's login-only portal (app.innovationcarnival.io),
+read by the lead and pasted into the session on 22 Oct 2026. The exact page URL was not recorded
+[U]. This is the first official source for U-01 [P].
+
+- **Challenge code: CHL-7007**, "Drunix Hackathon in collaboration with Citi", category
+  Blockchain. The code is for the whole hackathon, not one track. This confirms Project Axis's
+  CHL-7007 (18 Oct entry); its "Cross-Border Remittances" label was that team's track, not part
+  of the code.
+- **Organisation: India Blockchain Forum.** This confirms the 20 Oct [I] that the "IBF" logo on
+  innovationcarnival.io is the India Blockchain Forum.
+- **Active stage: Idea / Deck Submission.** Dates left out on purpose (timeline is not tracked
+  in U-01, 20 Oct entry).
+- **Problem statements / themes (five):** Real-Time Payments; Real Asset Tokenization;
+  Cross-Border Remittances; Financial Inclusion; Innovative Fintech Ideas ("New financial
+  technology concepts that improve customer and business outcomes"). This replaces the
+  public site's list, which had "AI & Fraud Detection" and "Open Finance APIs" instead of Real
+  Asset Tokenization and Innovative Fintech Ideas.
+- **Our track: Innovative Fintech Ideas** (lead's choice, D-29).
+- **Format:** the whole hackathon is online (registration, ideation, mentoring, development,
+  submissions, evaluation). The Grand Finale is hybrid: the top 10 finalist teams give a final
+  pitch, live demos and jury evaluation, in person or virtually. The page promises access to
+  NPCI APIs and infrastructure and to Citi mentors.
+- **Still open:** judging criteria / rubric (the page names none) [U]; what the prototype must
+  show (only "live demos" at the finale) [U]; the official FAQ [U]. Next: check the portal's
+  other tabs (rules, FAQ, evaluation) and the deck-submission form.
 
 ### U-02, U-03, U-04, U-05, U-07, U-11 (p3's network sessions, recorded by p1, 20 Oct 2026)
 
