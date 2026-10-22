@@ -11,11 +11,26 @@ import hashlib
 from datetime import date
 
 
+def _require_nonblank(value: str, field_name: str) -> None:
+    if not value.strip():
+        raise ValueError(f"{field_name} must not be empty")
+
+
+def validate_shipping_bill_identifiers(sb_number: str, port_code: str) -> None:
+    _require_nonblank(sb_number, "sb_number")
+    _require_nonblank(port_code, "port_code")
+
+
+def validate_reference(reference: str) -> None:
+    _require_nonblank(reference, "reference")
+
+
 def canonical_sb_string(sb_number: str, port_code: str, sb_date: date) -> str:
     """Return 'PORTCODE|SBNUMBER|YYYY-MM-DD': upper-cased, whitespace stripped.
 
     Spec: tests/backend/test_hashing_spec.py
     """
+    validate_shipping_bill_identifiers(sb_number, port_code)
     return f"{port_code.strip().upper()}|{sb_number.strip().upper()}|{sb_date.isoformat()}"
 
 
@@ -33,4 +48,5 @@ def reference_hash(reference: str, salt: str) -> str:
     if not salt:
         raise ValueError("salt must not be empty")
 
+    validate_reference(reference)
     return hashlib.sha256((salt + reference.strip()).encode("utf-8")).hexdigest()
