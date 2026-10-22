@@ -204,3 +204,23 @@ tracks. Newest last.
   forbidden and an instruction to stop and report at once if a push is accepted.
 - Other G0 item: REQ-p1-37 sent to p4 as issue #40 (D-26 checks, then G0: YES).
 - Gate status: G0 not declared; waits for #40 (p4) and #41 (p5). G1 declared (unchanged).
+
+### 2026-10-22 | merge window 8 | develop before 0617d68, after ec7226f
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #39 p1/g2-window-7-followup | p1 | merged (22 Oct 09:53) | 0617d68 | docs only |
+| #42 p1/g1-d28-push-test | p1 | merged (22 Oct 10:22) | b596012 | docs only |
+| #43 p1/g1-u01-portal | p1 | merged (22 Oct 14:15) | ed82e88 | docs only |
+| #47 p1/g1-close-u01 | p1 | merged (22 Oct 14:20) | 10dddf7 | docs only |
+| #48 p4/g3-metrics | p4 | merged (22 Oct 14:36) | ec7226f | py 74 passed, 13 skipped |
+- #48 is P4-G3-T2: `GET /metrics` and `GET /records` (with assessment per record), the three
+  metrics in `domain/metrics.py`, and the four metrics specs un-marked. It changes only p4's
+  files. No contract or generated-file change.
+- This PR ran `bash scripts/check_all.sh` on develop ec7226f: "all suites green". py 74 passed /
+  13 skipped / 0 xfailed, cc 28 passed, gw 73 passed, fe 6 passed / 9 todo. Python went from 64
+  passed / 4 xfailed to 74 passed / 0 xfailed with p4's assessment and metrics work.
+- REQ-p4-2 (from p4's log): p2's `ListRecords` is still `NotImplemented`; `/metrics` and
+  `/records` are tested against the gateway fake only. Real-network use waits on P2-G3-T1.
+- Not merged: p2/g2-chaincode (P2-G2-T1, issue #38) has no new PR. Issues #40 (p4), #41 (p5) and
+  #44 (p5) are open.
+- Gate status: G1 declared (unchanged). G0 not declared (#40, #41). G2 open; waits on #38.
