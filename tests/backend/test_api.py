@@ -23,6 +23,7 @@ from s14.contracts import (
 )
 from s14.domain.hashing import reference_hash, shipping_bill_hash
 from tests.backend.fakes import FakeGateway
+from tests.factories import T0, customs, event, record
 
 
 @pytest.fixture(autouse=True)
@@ -333,4 +334,119 @@ def test_customs_status_is_preserved_in_milestone_payload(monkeypatch):
         "milestone": Milestone.CUSTOMS_STATUS_OBSERVED.value,
         "occurred_on": "2026-10-19",
         "customs_status": CustomsStatus.PENDING.value,
+    }
+
+
+def test_list_records_returns_records_with_assessments():
+    records = [
+        record(
+            event(Milestone.DOCS_ACKNOWLEDGED, day=1),
+            customs(CustomsStatus.PENDING, day=2),
+        )
+    ]
+
+    class RecordsGateway(FakeGateway):
+        def evaluate(self, request: GatewayRequest) -> GatewayResult:
+            self.calls.append(request)
+            return GatewayResult(
+                ok=True,
+                payload=[item.model_dump(mode="json") for item in records],
+            )
+
+    gateway = RecordsGateway()
+    app.dependency_overrides[get_gateway] = lambda: gateway
+
+    response = TestClient(app).get("/records")
+
+    assert response.status_code == 200
+    assert response.json()[0]["record"]["sb_hash"] == records[0].sb_hash
+    assert response.json()[0]["assessment"]["bucket"] == "NO_PAYMENT_RECORDED"
+    assert gateway.calls == [
+        GatewayRequest(
+            function=ChaincodeFunction.LIST_RECORDS,
+            args=(),
+            identity=OrgRole.AD_BANK,
+        )
+    ]
+
+
+def test_metrics_returns_summary_for_gateway_records():
+    records = [
+        record(
+            event(Milestone.DOCS_ACKNOWLEDGED, day=2, occurred_on=T0.date()),
+            event(Milestone.PAYMENT_RECEIVED, day=3),
+            event(Milestone.EDPMS_MARKED_OFF, day=5),
+            customs(CustomsStatus.PENDING, day=6),
+        )
+    ]
+
+    class RecordsGateway(FakeGateway):
+        def evaluate(self, request: GatewayRequest) -> GatewayResult:
+            self.calls.append(request)
+            return GatewayResult(
+                ok=True,
+                payload=[item.model_dump(mode="json") for item in records],
+            )
+
+    gateway = RecordsGateway()
+    app.dependency_overrides[get_gateway] = lambda: gateway
+
+    response = TestClient(app).get("/metrics")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "n_records": 1,
+        "median_docs_handover_to_ack_days": 2.0,
+        "median_payment_to_markoff_days": 2.0,
+        "pending_total": 1,
+        "pending_with_markoff": 1,
+        "pending_with_markoff_share": 1.0,
+    }
+    assert gateway.calls == [
+        GatewayRequest(
+            function=ChaincodeFunction.LIST_RECORDS,
+            args=(),
+            identity=OrgRole.AD_BANK,
+        )
+    ]
+
+
+@pytest.mark.parametrize("route", ["/records", "/metrics"])
+def test_list_routes_return_gateway_error(route):
+    class FailingGateway(FakeGateway):
+        def evaluate(self, request: GatewayRequest) -> GatewayResult:
+            self.calls.append(request)
+            return GatewayResult(
+                ok=False,
+                error=ErrorBody(code=ErrorCode.LEDGER_UNAVAILABLE, message="ledger unavailable"),
+            )
+
+    gateway = FailingGateway()
+    app.dependency_overrides[get_gateway] = lambda: gateway
+
+    response = TestClient(app).get(route)
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "code": "LEDGER_UNAVAILABLE",
+        "message": "ledger unavailable",
+    }
+    assert len(gateway.calls) == 1
+
+
+@pytest.mark.parametrize("route", ["/records", "/metrics"])
+def test_list_routes_return_internal_error_for_invalid_gateway_payload(route):
+    class InvalidRecordsGateway(FakeGateway):
+        def evaluate(self, request: GatewayRequest) -> GatewayResult:
+            self.calls.append(request)
+            return GatewayResult(ok=True, payload=[{"invalid": "record"}])
+
+    app.dependency_overrides[get_gateway] = lambda: InvalidRecordsGateway()
+
+    response = TestClient(app).get(route)
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "code": "INTERNAL",
+        "message": "Gateway returned an invalid shipping-bill record list.",
     }

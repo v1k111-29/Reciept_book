@@ -12,7 +12,7 @@ import os
 from fastapi import Depends, FastAPI, Path, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from s14.contracts import (
     CREATE_RECORD_ROLE,
@@ -25,6 +25,7 @@ from s14.contracts import (
     ErrorCode,
     GatewayRequest,
     GatewayResult,
+    MetricsSummary,
     Milestone,
     OrgRole,
     MilestoneRequest,
@@ -35,9 +36,11 @@ from s14.contracts import (
 )
 from s14.domain.assessment import assess
 from s14.domain.hashing import reference_hash, shipping_bill_hash
+from s14.domain.metrics import summarise
 from s14.gateway_client import Gateway, HttpGateway
 
 app = FastAPI(title="S14 Receipt Book API", version="0.1.0")
+_RECORDS_ADAPTER = TypeAdapter(list[ShippingBillRecord])
 
 
 @app.exception_handler(RequestValidationError)
@@ -65,6 +68,24 @@ def _gateway_error(result: GatewayResult) -> JSONResponse:
             ErrorBody(code=ErrorCode.INTERNAL, message="Gateway returned an unsuccessful result without an error.")
         )
     return _error_response(result.error)
+
+
+def _list_records(gateway: Gateway) -> list[ShippingBillRecord] | JSONResponse:
+    result = gateway.evaluate(
+        GatewayRequest(
+            function=ChaincodeFunction.LIST_RECORDS,
+            args=(),
+            identity=OrgRole.AD_BANK,
+        )
+    )
+    if not result.ok:
+        return _gateway_error(result)
+    try:
+        return _RECORDS_ADAPTER.validate_python(result.payload)
+    except ValidationError:
+        return _error_response(
+            ErrorBody(code=ErrorCode.INTERNAL, message="Gateway returned an invalid shipping-bill record list.")
+        )
 
 
 def _unknown_write_committed(
@@ -203,3 +224,19 @@ def get_timeline(
             ErrorBody(code=ErrorCode.INTERNAL, message="Gateway returned an invalid shipping-bill record.")
         )
     return TimelineView(record=record, assessment=assess(record))
+
+
+@app.get("/records", response_model=list[TimelineView])
+def list_records(gateway: Gateway = Depends(get_gateway)) -> list[TimelineView] | JSONResponse:
+    records = _list_records(gateway)
+    if isinstance(records, JSONResponse):
+        return records
+    return [TimelineView(record=record, assessment=assess(record)) for record in records]
+
+
+@app.get("/metrics", response_model=MetricsSummary)
+def get_metrics(gateway: Gateway = Depends(get_gateway)) -> MetricsSummary | JSONResponse:
+    records = _list_records(gateway)
+    if isinstance(records, JSONResponse):
+        return records
+    return summarise(records)
