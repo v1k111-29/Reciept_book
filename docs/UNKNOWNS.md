@@ -5,7 +5,7 @@ Rule: nobody codes as if an unknown were known. Close an item by writing the evi
 
 | ID | Unknown | Why it matters | Owner | Close by | How to close | Status |
 |---|---|---|---|---|---|---|
-| U-01 | Our challenge code, judging criteria, prototype requirement, official FAQ | Whether "admit a database baseline" is acceptable; what the prototype must show | p1 | G1 | ask the organisers (India Blockchain Forum, per Project Axis's README); get the FAQ | OPEN: challenge code, organiser and themes confirmed from the portal (22 Oct); judging criteria, prototype requirement and FAQ still open |
+| U-01 | Our challenge code, judging criteria, prototype requirement, official FAQ | Whether "admit a database baseline" is acceptable; what the prototype must show | p1 | G1 | ask the organisers (India Blockchain Forum, per Project Axis's README); get the FAQ | CLOSED 22 Oct 2026 (lead): challenge code, organiser and themes confirmed from the portal; no further leads for judging criteria, prototype requirement or FAQ, which stay [U] |
 | U-02 | Which Drunix peer serves the Fabric Gateway API (lite or committing), and does `@hyperledger/fabric-gateway` 1.13 work with it | The whole gateway design (D-04) | p3 | G1 | connect from the gateway to each peer; log the result | CLOSED 18 Oct 2026 (p3; evidence below) |
 | U-03 | Does Drunix `network.sh deployCC` accept `-ccep` (endorsement policy) and `-ccl typescript` | E3 and deployment | p3 | G1 | read `network.sh` / run it; log | CLOSED 18 Oct 2026 (p3; TypeScript needs the ISS-p3-8 workaround; evidence below) |
 | U-04 | Can the state DB be something other than YugabyteDB (issue #8: non-atomic SQL + Redis writes) | Reliability of commits | p3 | G1 | try the `-s` options; log | SETTLED BY DECISION 18 Oct 2026 (D-23: keep YugabyteDB); other state DBs untested |
@@ -101,6 +101,20 @@ read by the lead and pasted into the session on 22 Oct 2026. The exact page URL 
 - **Still open:** judging criteria / rubric (the page names none) [U]; what the prototype must
   show (only "live demos" at the finale) [U]; the official FAQ [U]. Next: check the portal's
   other tabs (rules, FAQ, evaluation) and the deck-submission form.
+
+### U-01 (p1, 22 Oct 2026): CLOSED with no further leads
+
+The lead closed U-01 on 22 Oct 2026. What is confirmed is in the 22 Oct portal entry above:
+challenge code CHL-7007, organiser India Blockchain Forum, five themes, our theme (D-29) and the
+format. For the other three items there are no further leads to follow: public research (18 and
+20 Oct) found nothing official, and the challenge page names none. They stay [U]:
+
+- Judging criteria: work to the public pillars "innovation, scalability, and real-world impact"
+  (Internshala listing, 18 Oct entry) [P, not organiser-run].
+- Prototype requirement: the only official hint is "live demos" at the Grand Finale.
+- Official FAQ: not found. Project Axis's FAQ citations (18 Oct entry) stay [S].
+
+Reopen as a new item if the organisers publish any of these.
 
 ### U-02, U-03, U-04, U-05, U-07, U-11 (p3's network sessions, recorded by p1, 20 Oct 2026)
 
