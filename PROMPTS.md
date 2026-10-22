@@ -37,6 +37,7 @@ On develop after merge window 7 (21 Oct 2026, d093bb3) the counts are: Python **
 13 skipped, 4 xfailed** and chaincode **28 passed** (unchanged); gateway **54 passed, 0 todo**
 (`/submit` and `/evaluate` routes with error mapping on a fake ledger, PR #34); frontend
 **6 passed, 9 todo** (UI shell render tests, PR #36).
+Later in merge window 7, PR #35 (FabricLedger tests) took the gateway to **73 passed, 0 todo**.
 
 ---
 

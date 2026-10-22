@@ -176,3 +176,19 @@ tracks. Newest last.
   deployed (P2-G1-T2); U-02 to U-05 and U-07 answered. All G1 task rows are done except
   P1-G1-T2 (U-01), which is carried forward and does not block G2 work. G0 is still not declared:
   p4's report is NOT-YET until REQ-p1-37 (D-26) lands, and the push test (DEP-p1-3) has not run.
+
+### 2026-10-22 | addendum to merge window 7 | develop before 10cbc8f
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #35 p3/g2-ledger | p3 | merged (by v1k111-29, 21 Oct 16:29:06 UTC, 18 s before #37) | before 10cbc8f | gw 73 passed, 0 todo |
+| #37 p1/g1-merge-window-7 | p1 | merged (by v1k111-29, 21 Oct 16:29 UTC) | 10cbc8f | docs only |
+- Correction to the merge window 7 entry: it says #35 is open and asks p3 to rebase it. Both are
+  wrong; #35 was merged while #37 was in review. Its merge commit from develop (d9a2d3c) is now on
+  develop, like 0254432 from #34. ISS-p1-20 stays as the record; REQ-p1-38 is withdrawn.
+- This PR ran `bash scripts/check_all.sh` on develop 10cbc8f: "all suites green". py 64/13s/4x /
+  cc 28 / gw 73 passed, 0 todo / fe 6 passed, 9 todo. Gateway went from 54 to 73 with #35 (19
+  FabricLedger tests). PROMPTS.md updated.
+- REQ-p3-7 answered by D-27: D-23 stands, with p3's health check and a rebuild-before-live rule.
+- REQ-p1-39 (p2: rebase p2/g2-chaincode, open a new PR for P2-G2-T1) sent as issue #38.
+- Gate status: G1 declared (unchanged). G2 work is open; it waits on P2-G2-T1 (issue #38) for the
+  live `/submit` call (DEP-p3-2). G0 still not declared (REQ-p1-37, DEP-p1-3).
