@@ -119,9 +119,25 @@ export class ReceiptBook extends Contract {
     return JSON.stringify(record);
   }
 
-  /** ListRecords() -> ShippingBillRecord[] JSON (range query over all keys). */
+  /**
+   * ListRecords() -> ShippingBillRecord[] JSON: every record, in key (sb_hash) order, from a range
+   * query over all keys. Only keys that are sb_hashes are records; anything else is skipped.
+   */
   @Transaction(false)
   public async ListRecords(ctx: Context): Promise<string> {
-    throw new Error("NotImplemented: P2 G3");
+    const records: ShippingBillRecord[] = [];
+    const iterator = await ctx.stub.getStateByRange("", "");
+    try {
+      for (;;) {
+        const res = await iterator.next();
+        if (res.value && HASH_PATTERN.test(res.value.key)) {
+          records.push(JSON.parse(Buffer.from(res.value.value).toString("utf8")) as ShippingBillRecord);
+        }
+        if (res.done) break;
+      }
+    } finally {
+      await iterator.close();
+    }
+    return JSON.stringify(records);
   }
 }
