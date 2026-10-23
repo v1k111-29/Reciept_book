@@ -78,6 +78,14 @@ export PATH=$PWD/../../build/bin:$PATH FABRIC_CFG_PATH=$(cd ../config && pwd)
 source ./scripts/envVar.sh && setGlobals <org 1|2> <peer 0=lite|1=committing>
 peer channel getinfo -c receiptbook
 ```
+- `peer chaincode invoke --waitForEvent` times out when `--peerAddresses` are the lite peers
+  (":7051/:9051"), because lite peers keep no blocks and send no commit events. Leave out
+  `--waitForEvent` and read the result with `bash network/last-block.sh <1|2>`, which shows the
+  newest block on that org's committing peer, the endorsing MSPs and each transaction's
+  validation code.
+- Endorsement policy check (E3, P3-G3-T1, 22 Oct 2026): a write endorsed by only one org is
+  ordered but marked `ENDORSEMENT_POLICY_FAILURE` at commit and changes nothing. Evidence in
+  docs/logs/p3.md.
 
 G1 questions (docs/UNKNOWNS.md), status 18 Oct 2026 (evidence in docs/logs/p3.md):
 - U-02 (which peer serves the Fabric Gateway API): answered. Both peer types do.
