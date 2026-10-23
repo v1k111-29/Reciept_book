@@ -224,3 +224,10 @@ tracks. Newest last.
 - Not merged: p2/g2-chaincode (P2-G2-T1, issue #38) has no new PR. Issues #40 (p4), #41 (p5) and
   #44 (p5) are open.
 - Gate status: G1 declared (unchanged). G0 not declared (#40, #41). G2 open; waits on #38.
+
+### 2026-10-22 | G0 push-hook test | p5
+- Installed the repository hooks with `bash scripts/install-hooks.sh`; verified `core.hooksPath=scripts/hooks` and `s14.id=p5`.
+- Simulated a pre-push update targeting `refs/heads/develop`. The hook rejected it with the expected lead-only message.
+- The prescribed `git push origin HEAD:develop` returned `Everything up-to-date`; `git log --oneline origin/develop..HEAD` was empty, so there were no outgoing commits and this did not prove rejection of a real update.
+- Verified with `git ls-remote origin refs/heads/develop` that remote `develop` remained at `ec7226fdf2f9e6a76a296996aeae2f194eca21bb`, matching the baseline fetched before the test.
+- Result: simulated hook guard verified; real push-blocking test remains inconclusive. No further push to `develop` attempted because GitHub protection is not active.
