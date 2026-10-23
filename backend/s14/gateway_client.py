@@ -11,15 +11,25 @@ import os
 from typing import Protocol
 
 import httpx
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from s14.contracts import (
+    CHAINCODE_RESULT,
     GATEWAY_ROUTES,
+    ChaincodeFunction,
     ErrorBody,
     ErrorCode,
     GatewayRequest,
     GatewayResult,
+    MilestoneEvent,
+    ShippingBillRecord,
 )
+
+_RESULT_VALIDATORS: dict[str, TypeAdapter[object]] = {
+    ShippingBillRecord.__name__: TypeAdapter(ShippingBillRecord),
+    MilestoneEvent.__name__: TypeAdapter(MilestoneEvent),
+    f"list[{ShippingBillRecord.__name__}]": TypeAdapter(list[ShippingBillRecord]),
+}
 
 
 class Gateway(Protocol):
@@ -59,7 +69,7 @@ class HttpGateway:
             )
 
         try:
-            return GatewayResult.model_validate(response.json())
+            result = GatewayResult.model_validate(response.json())
         except (ValueError, ValidationError):
             return GatewayResult(
                 ok=False,
@@ -68,3 +78,27 @@ class HttpGateway:
                     message=f"Gateway returned an invalid response (HTTP {response.status_code}).",
                 ),
             )
+        if not result.ok:
+            return result
+
+        result_shape = CHAINCODE_RESULT[request.function]
+        validator = _RESULT_VALIDATORS.get(result_shape)
+        if validator is None:
+            return GatewayResult(
+                ok=False,
+                error=ErrorBody(
+                    code=ErrorCode.INTERNAL,
+                    message=f"Backend has no validator for the {result_shape} gateway payload.",
+                ),
+            )
+        try:
+            validator.validate_python(result.payload)
+        except ValidationError:
+            return GatewayResult(
+                ok=False,
+                error=ErrorBody(
+                    code=ErrorCode.INTERNAL,
+                    message=f"Gateway returned an invalid {result_shape} payload.",
+                ),
+            )
+        return result

@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+import s14.api as api
 from s14.api import app, get_gateway
 from s14.contracts import (
     ChaincodeFunction,
@@ -56,6 +57,31 @@ def test_create_record_hashes_identifiers_and_submits_with_bank_identity(monkeyp
     assert "SB-42" not in repr(gateway.calls)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("sb_number", " \t "), ("port_code", " ")],
+)
+def test_create_record_rejects_blank_identifiers_before_hashing_or_gateway(
+    monkeypatch, field, value
+):
+    monkeypatch.setenv("S14_HASH_SALT", "test-salt")
+    gateway = FakeGateway()
+    app.dependency_overrides[get_gateway] = lambda: gateway
+    monkeypatch.setattr(
+        api,
+        "shipping_bill_hash",
+        lambda *args: pytest.fail("blank identifiers must be rejected before hashing"),
+    )
+    request = {"sb_number": "SB-42", "port_code": "INMAA1", "sb_date": "2026-10-20"}
+    request[field] = value
+
+    response = TestClient(app).post("/records", json=request)
+
+    assert response.status_code == 422
+    assert response.json()["code"] == ErrorCode.VALIDATION.value
+    assert gateway.calls == []
+
+
 def test_record_milestone_hashes_reference_and_sends_contract_payload(monkeypatch):
     monkeypatch.setenv("S14_HASH_SALT", "test-salt")
     gateway = FakeGateway()
@@ -85,6 +111,31 @@ def test_record_milestone_hashes_reference_and_sends_contract_payload(monkeypatc
         "reference_hash": reference_hash("IRM-SYNTHETIC-42", "test-salt"),
     }
     assert "IRM-SYNTHETIC-42" not in call.args[0]
+
+
+def test_record_milestone_rejects_blank_reference_before_hashing_or_gateway(monkeypatch):
+    monkeypatch.setenv("S14_HASH_SALT", "test-salt")
+    gateway = FakeGateway()
+    app.dependency_overrides[get_gateway] = lambda: gateway
+    monkeypatch.setattr(
+        api,
+        "reference_hash",
+        lambda *args: pytest.fail("blank references must be rejected before hashing"),
+    )
+
+    response = TestClient(app).post(
+        f"/records/{'a' * 64}/milestones",
+        json={
+            "milestone": "PAYMENT_RECEIVED",
+            "occurred_on": "2026-10-19",
+            "acting_as": "AD_BANK",
+            "reference": " \t ",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == ErrorCode.VALIDATION.value
+    assert gateway.calls == []
 
 
 def test_get_timeline_returns_record_and_assessment():

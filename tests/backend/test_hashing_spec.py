@@ -31,5 +31,19 @@ def test_empty_salt_rejected():
         hashing.shipping_bill_hash("1", "P", date(2026, 1, 1), "")
 
 
+@pytest.mark.parametrize(
+    ("sb_number", "port_code"),
+    [(" ", "INMAA1"), ("SB-42", "\t")],
+)
+def test_shipping_bill_hash_rejects_whitespace_only_identifiers(sb_number, port_code):
+    with pytest.raises(ValueError):
+        hashing.shipping_bill_hash(sb_number, port_code, date(2026, 1, 1), "salt")
+
+
 def test_reference_hash_strips_whitespace():
     assert hashing.reference_hash(" IRM42 ", "s") == hashing.reference_hash("IRM42", "s")
+
+
+def test_reference_hash_rejects_whitespace_only_reference():
+    with pytest.raises(ValueError):
+        hashing.reference_hash(" \t ", "salt")

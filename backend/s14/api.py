@@ -35,8 +35,13 @@ from s14.contracts import (
     TxReceipt,
 )
 from s14.domain.assessment import assess
-from s14.domain.hashing import reference_hash, shipping_bill_hash
 from s14.domain.metrics import summarise
+from s14.domain.hashing import (
+    reference_hash,
+    shipping_bill_hash,
+    validate_reference,
+    validate_shipping_bill_identifiers,
+)
 from s14.gateway_client import Gateway, HttpGateway
 
 app = FastAPI(title="S14 Receipt Book API", version="0.1.0")
@@ -133,6 +138,11 @@ def create_record(
     request: CreateRecordRequest,
     gateway: Gateway = Depends(get_gateway),
 ) -> TxReceipt | JSONResponse:
+    try:
+        validate_shipping_bill_identifiers(request.sb_number, request.port_code)
+    except ValueError as exc:
+        return _error_response(ErrorBody(code=ErrorCode.VALIDATION, message=str(exc)))
+
     salt = _hash_salt()
     if isinstance(salt, JSONResponse):
         return salt
@@ -167,6 +177,12 @@ def record_milestone(
     sb_hash: str = Path(pattern=HASH_PATTERN),
     gateway: Gateway = Depends(get_gateway),
 ) -> TxReceipt | JSONResponse:
+    if request.reference is not None:
+        try:
+            validate_reference(request.reference)
+        except ValueError as exc:
+            return _error_response(ErrorBody(code=ErrorCode.VALIDATION, message=str(exc)))
+
     salt = _hash_salt()
     if isinstance(salt, JSONResponse):
         return salt
