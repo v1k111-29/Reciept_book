@@ -3,6 +3,7 @@ import { api as realApi, ApiError, type Api } from "./api";
 import {
   CONTRACTS_VERSION,
   CustomsStatus,
+  HASH_PATTERN,
   Milestone,
   OrgRole,
   REFERENCE_REQUIRED,
@@ -33,6 +34,9 @@ export function causeInWords(bucket: CauseBucket) {
 }
 
 function errorText(e: unknown) {
+  if (e instanceof ApiError && e.code === "OUTCOME_UNKNOWN") {
+    return `OUTCOME_UNKNOWN: ${e.message}. The write may have been recorded. Check the timeline before retrying.`;
+  }
   if (e instanceof ApiError) return `${e.code}: ${e.message}`;
   return e instanceof Error ? e.message : String(e);
 }
@@ -48,10 +52,12 @@ function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash:
   const [sbNumber, setSbNumber] = useState("");
   const [portCode, setPortCode] = useState("");
   const [sbDate, setSbDate] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function submitMilestone(ev: React.FormEvent) {
     ev.preventDefault();
-    if (!milestone) return;
+    if (!milestone || busy) return;
+    setBusy(true);
     try {
       const receipt = await api.recordMilestone(sbHash, {
         milestone,
@@ -64,11 +70,15 @@ function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash:
       onDone(receipt.sb_hash);
     } catch (e) {
       setMessage(errorText(e));
+    } finally {
+      setBusy(false);
     }
   }
 
   async function submitCreate(ev: React.FormEvent) {
     ev.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
       const receipt = await api.createRecord({ sb_number: sbNumber, port_code: portCode, sb_date: sbDate });
       setSbHash(receipt.sb_hash);
@@ -76,6 +86,8 @@ function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash:
       onDone(receipt.sb_hash);
     } catch (e) {
       setMessage(errorText(e));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -87,17 +99,19 @@ function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash:
           <h3>New shipping bill</h3>
           <label>
             Shipping bill number
-            <input value={sbNumber} onChange={(e) => setSbNumber(e.target.value)} required />
+            <input value={sbNumber} onChange={(e) => setSbNumber(e.target.value)} maxLength={20} required />
           </label>
           <label>
             Port code
-            <input value={portCode} onChange={(e) => setPortCode(e.target.value)} required />
+            <input value={portCode} onChange={(e) => setPortCode(e.target.value)} maxLength={10} required />
           </label>
           <label>
             Shipping bill date
             <input type="date" value={sbDate} onChange={(e) => setSbDate(e.target.value)} required />
           </label>
-          <button type="submit">Create record</button>
+          <button type="submit" disabled={busy}>
+            Create record
+          </button>
         </form>
       )}
       <p>Select a milestone to record for a shipping bill.</p>
@@ -115,7 +129,7 @@ function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash:
           <h3>{formatMilestone(milestone)}</h3>
           <label>
             Shipping bill hash
-            <input value={sbHash} onChange={(e) => setSbHash(e.target.value)} required />
+            <input value={sbHash} onChange={(e) => setSbHash(e.target.value.trim())} pattern={HASH_PATTERN.source} required />
           </label>
           <label>
             Occurred on
@@ -124,7 +138,7 @@ function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash:
           {REFERENCE_REQUIRED.includes(milestone) && (
             <label>
               Reference (hashed before it leaves the server)
-              <input value={reference} onChange={(e) => setReference(e.target.value)} required />
+              <input value={reference} onChange={(e) => setReference(e.target.value)} maxLength={64} required />
             </label>
           )}
           {milestone === Milestone.CUSTOMS_STATUS_OBSERVED && (
@@ -139,7 +153,9 @@ function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash:
               </select>
             </label>
           )}
-          <button type="submit">Record milestone</button>
+          <button type="submit" disabled={busy}>
+            Record milestone
+          </button>
         </form>
       )}
       {message && <p role="status">{message}</p>}
@@ -153,7 +169,7 @@ function Timeline({ view }: { view: TimelineView }) {
       <p>Shipping bill: {view.record.sb_hash.slice(0, 12)}…</p>
       <ol>
         {[...view.record.events]
-          .sort((a, b) => a.ledger_time.localeCompare(b.ledger_time))
+          .sort((a, b) => Date.parse(a.ledger_time) - Date.parse(b.ledger_time))
           .map((event) => (
             <li key={event.tx_id}>
               <strong>{formatMilestone(event.milestone)}</strong>
@@ -176,19 +192,36 @@ function TimelinePage({ api, focus }: { api: Api; focus: string }) {
   const [found, setFound] = useState<TimelineView | null>(null);
   const [error, setError] = useState("");
 
+  const show = useCallback(
+    async (sbHash: string) => {
+      try {
+        setFound(await api.getTimeline(sbHash));
+        setError("");
+      } catch (e) {
+        setFound(null);
+        setError(errorText(e));
+      }
+    },
+    [api],
+  );
+
   useEffect(() => {
     api.listRecords().then(setRecords).catch((e) => setError(errorText(e)));
   }, [api]);
 
-  async function find(ev: React.FormEvent) {
+  // A record just written on a desk opens straight away.
+  useEffect(() => {
+    if (focus) void show(focus);
+  }, [focus, show]);
+
+  function find(ev: React.FormEvent) {
     ev.preventDefault();
-    try {
-      setFound(await api.getTimeline(lookup));
-      setError("");
-    } catch (e) {
-      setFound(null);
-      setError(errorText(e));
+    const sbHash = lookup.trim();
+    if (!HASH_PATTERN.test(sbHash)) {
+      setError("Enter a 64-character shipping bill hash (0-9, a-f).");
+      return;
     }
+    void show(sbHash);
   }
 
   const shown = found ? [found] : records;
@@ -199,9 +232,14 @@ function TimelinePage({ api, focus }: { api: Api; focus: string }) {
       <form onSubmit={find} aria-label="Look up shipping bill">
         <label>
           Shipping bill hash
-          <input value={lookup} onChange={(e) => setLookup(e.target.value)} />
+          <input value={lookup} onChange={(e) => setLookup(e.target.value)} required />
         </label>
         <button type="submit">Look up</button>
+        {found && (
+          <button type="button" onClick={() => setFound(null)}>
+            Show all records
+          </button>
+        )}
       </form>
       {error && <p role="alert">{error}</p>}
       {shown.map((v) => (

@@ -1,4 +1,5 @@
-"""Seed command: uv run python -m s14.seed [--count 30] [--backend http://localhost:8000]
+"""Seed command, from the repo root (s14 is not an installed package, pyproject.toml):
+    PYTHONPATH=backend uv run python -m s14.seed [--count 30] [--backend http://localhost:8000]
 
 Loads synthetic demo shipping bills through the running backend (which needs the gateway and
 Drunix network up). Prints counts per cause bucket afterwards, from GET /records.
@@ -25,18 +26,31 @@ def main(argv: list[str] | None = None) -> int:
     with httpx.Client(base_url=args.backend, timeout=60.0) as client:
 
         def post(path: str, body: dict[str, object]) -> tuple[int, dict[str, object]]:
-            response = client.post(path, json=body)
-            return response.status_code, response.json()
+            try:
+                response = client.post(path, json=body)
+            except httpx.HTTPError as exc:
+                return 0, {"code": "NETWORK", "message": str(exc)}
+            try:
+                return response.status_code, response.json()
+            except ValueError:
+                return response.status_code, {"message": response.text[:200]}
 
         loaded, errors = load_records(post, args.count)
         print(f"loaded {loaded}/{args.count} synthetic records (synthetic demo data)")
         for line in errors:
             print(f"ERROR {line}", file=sys.stderr)
-        listing = client.get("/records")
-        if listing.status_code == 200:
-            counts = Counter(item["assessment"]["bucket"] for item in listing.json())
-            print("on ledger by cause bucket:", dict(counts))
-        print("seeded by bucket:", {b.value: n for b, n in expected_buckets(args.count).items()})
+        if any("ALREADY_EXISTS" in line for line in errors):
+            print("hint: records from an earlier seed exist; run network/down.sh and network/up.sh first", file=sys.stderr)
+        print("intended by bucket:", {b.value: n for b, n in expected_buckets(args.count).items()})
+        try:
+            listing = client.get("/records")
+            if listing.status_code == 200:
+                counts = Counter(item["assessment"]["bucket"] for item in listing.json())
+                print("on ledger by cause bucket:", dict(counts))
+            else:
+                print(f"GET /records -> {listing.status_code}", file=sys.stderr)
+        except (httpx.HTTPError, ValueError) as exc:
+            print(f"GET /records failed: {exc}", file=sys.stderr)
     return 1 if errors else 0
 
 

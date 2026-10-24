@@ -17,7 +17,13 @@ for cmd in docker uv node npm curl; do
 done
 
 PIDS=()
-cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; }
+cleanup() { # kill each background job and its children (npm -> node, uv -> uvicorn)
+  for p in "${PIDS[@]:-}"; do
+    [ -n "$p" ] || continue
+    pkill -TERM -P "$p" 2>/dev/null || true
+    kill "$p" 2>/dev/null || true
+  done
+}
 trap cleanup EXIT INT TERM
 
 wait_for() { # <name> <url>
@@ -42,19 +48,26 @@ uv sync
 echo "== gateway"
 # shellcheck source=/dev/null
 source network/gateway-env.sh
-(cd gateway && npm run dev >"$LOGS/gateway.log" 2>&1) &
+GW_PORT="${S14_GATEWAY_PORT:-8800}"
+for port in "$GW_PORT" 8000 5173; do
+  ! curl -s -o /dev/null "http://localhost:$port" || { echo "demo: port $port already in use; stop the old process first" >&2; exit 1; }
+done
+(cd gateway && exec npm run dev >"$LOGS/gateway.log" 2>&1) &
 PIDS+=($!)
-wait_for gateway "http://localhost:${S14_GATEWAY_PORT:-8800}/health"
+wait_for gateway "http://localhost:$GW_PORT/health"
 
 echo "== backend"
-# Demo-only salt. Real salts never go in git (AGENTS.md section 8).
-export S14_HASH_SALT="${S14_HASH_SALT:-demo-salt-synthetic-data-only}"
-uv run uvicorn s14.api:app --port 8000 >"$LOGS/backend.log" 2>&1 &
+# No salt in git (AGENTS.md section 8): a fresh random salt per demo run unless one is set.
+# A fresh network is seeded each run, so hashes need not be stable across runs.
+export S14_HASH_SALT="${S14_HASH_SALT:-$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')}"
+# pyproject.toml has package = false: s14 is importable only with backend/ on the path.
+export PYTHONPATH="$ROOT/backend${PYTHONPATH:+:$PYTHONPATH}"
+uv run uvicorn s14.api:app --app-dir backend --port 8000 >"$LOGS/backend.log" 2>&1 &
 PIDS+=($!)
 wait_for backend "http://localhost:8000/health"
 
 echo "== seed (synthetic demo data)"
-uv run python -m s14.seed --count 30 --backend http://localhost:8000
+uv run python -m s14.seed --count 30 --backend http://localhost:8000 || echo "demo: seed reported errors (see above); UI still starts" >&2
 
 echo "== UI at http://localhost:5173 (Ctrl-C stops everything)"
 (cd frontend && npm run dev -- --host)

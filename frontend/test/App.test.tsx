@@ -62,7 +62,7 @@ test("a rejected write shows the error code", async () => {
   });
   render(<App api={api} />);
   fireEvent.click(screen.getByRole("button", { name: "DOCS ACKNOWLEDGED" }));
-  fireEvent.change(screen.getByLabelText("Shipping bill hash"), { target: { value: "x" } });
+  fireEvent.change(screen.getByLabelText("Shipping bill hash"), { target: { value: "b".repeat(64) } });
   fireEvent.change(screen.getByLabelText("Occurred on"), { target: { value: "2026-10-02" } });
   fireEvent.change(screen.getByLabelText(/Reference/), { target: { value: "D1" } });
   fireEvent.click(screen.getByRole("button", { name: "Record milestone" }));
@@ -101,4 +101,59 @@ test("metrics view says not enough data for null measures", async () => {
   render(<App api={api} />);
   fireEvent.click(screen.getByRole("button", { name: "Metrics" }));
   await waitFor(() => expect(screen.getAllByText(/Not enough data/)).toHaveLength(3));
+});
+
+test("timeline lookup rejects a value that is not a hash", async () => {
+  const api = fakeApi();
+  render(<App api={api} />);
+  fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
+  fireEvent.change(screen.getByLabelText("Shipping bill hash"), { target: { value: "SB-123" } });
+  fireEvent.click(screen.getByRole("button", { name: "Look up" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("64-character");
+  expect(api.getTimeline).not.toHaveBeenCalled();
+});
+
+test("a record written on a desk opens on the timeline", async () => {
+  const api = fakeApi();
+  render(<App api={api} />);
+  fireEvent.click(screen.getByRole("button", { name: "PAYMENT RECEIVED" }));
+  fireEvent.change(screen.getByLabelText("Shipping bill hash"), { target: { value: "a".repeat(64) } });
+  fireEvent.change(screen.getByLabelText("Occurred on"), { target: { value: "2026-10-02" } });
+  fireEvent.change(screen.getByLabelText(/Reference/), { target: { value: "IRM-1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Record milestone" }));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("t1"));
+  fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
+  await waitFor(() => expect(api.getTimeline).toHaveBeenCalledWith("a".repeat(64)));
+  expect(await screen.findByRole("button", { name: "Show all records" })).toBeInTheDocument();
+});
+
+test("an unknown outcome tells the user to check before retrying", async () => {
+  const api = fakeApi({
+    recordMilestone: vi.fn().mockRejectedValue(new ApiError("OUTCOME_UNKNOWN", "commit status unknown", 504)),
+  });
+  render(<App api={api} />);
+  fireEvent.click(screen.getByRole("button", { name: "EDPMS MARKED OFF" }));
+  fireEvent.change(screen.getByLabelText("Shipping bill hash"), { target: { value: "a".repeat(64) } });
+  fireEvent.change(screen.getByLabelText("Occurred on"), { target: { value: "2026-10-02" } });
+  fireEvent.click(screen.getByRole("button", { name: "Record milestone" }));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("may have been recorded"));
+});
+
+test("timeline orders same-second events by real time, not string order", async () => {
+  const [first, second] = timelineFixture.record.events;
+  const view = {
+    ...timelineFixture,
+    record: {
+      ...timelineFixture.record,
+      events: [
+        { ...second, ledger_time: "2026-10-20T09:05:00.500000Z" },
+        { ...first, ledger_time: "2026-10-20T09:05:00Z" },
+      ],
+    },
+  };
+  render(<App api={fakeApi({ listRecords: vi.fn().mockResolvedValue([view]) })} />);
+  fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
+  const items = await screen.findAllByRole("listitem");
+  expect(items[0]).toHaveTextContent("DOCS ACKNOWLEDGED");
+  expect(items[1]).toHaveTextContent("PAYMENT RECEIVED");
 });
