@@ -274,3 +274,12 @@ tracks. Newest last.
   24 Oct 2026: 91 passed, 14 skipped, 1 warning; `npm test` in frontend/: 19 passed. These
   include uncommitted changes and are not counts of develop 2cfa87e. `check_all.sh` was not run
   for this entry.
+
+### 2026-10-24 | rulings for G0 and PR #54 | develop at 2cfa87e
+- D-30 (amends D-28): p5's local bare-repo push test (PR #55) counts as G0's push test. Once #55
+  is merged, G0's last item (DEP-p1-3, issue #41) is met. All five G0 reports already say YES.
+  So G0 is declared when #55 merges.
+- D-31: PR #54 is superseded by PR #56. p5's #54 log entries are copied into `docs/logs/p5.md` on
+  #56 (CNF-p1-54 resolved that way); #54 to be closed with a pointer to D-31.
+- The lead's merge of #55 from this session was refused by the tool's permission check
+  ("Merge Without Review"). #55, #56 and the closing of #54 wait for the lead to do by hand.
