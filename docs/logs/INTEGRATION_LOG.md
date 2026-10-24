@@ -224,3 +224,53 @@ tracks. Newest last.
 - Not merged: p2/g2-chaincode (P2-G2-T1, issue #38) has no new PR. Issues #40 (p4), #41 (p5) and
   #44 (p5) are open.
 - Gate status: G1 declared (unchanged). G0 not declared (#40, #41). G2 open; waits on #38.
+
+### 2026-10-24 | addendum to merge window 8 | develop at 2cfa87e
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #49 p4/g2-d26-validation | p4 | merged (by v1k111-29, 23 Oct 05:58:04 UTC) | 1c83b2f | not rerun by the lead; p4.md 2026-10-22 10:10: py 78 passed / 13 skipped / 4 xfailed |
+| #50 p3/g3-endorsement | p3 | merged (by v1k111-29, 23 Oct 05:58:09 UTC) | 69b6396 | not rerun by the lead; p3.md 2026-10-22 20:22 |
+| #51 p2/g2-chaincode | p2 | merged (by v1k111-29, 23 Oct 05:58:14 UTC) | a4ff3bd | not rerun by the lead; p2.md: cc 45 passed |
+| #52 p2/g3-list-records | p2 | merged (by v1k111-29, 23 Oct 05:58:19 UTC) | 1d2b34b | not rerun by the lead; p2.md: cc 70 passed |
+| #53 p1/g2-merge-window-8 | p1 | merged (by v1k111-29, 23 Oct 05:58:24 UTC) | 2cfa87e | docs only |
+- Source: `gh pr view <n> --json mergedAt,author,mergedBy` on 24 Oct 2026. All five were merged
+  within 20 seconds of each other; this addendum is written after the fact. The lead did not run
+  `bash scripts/check_all.sh` on the individual merge commits, so no suite counts are recorded
+  here that were not measured; the counts in the last column are the authors' own.
+- Corrections to the merge window 8 entry (2026-10-22): it says p2/g2-chaincode (issue #38) has no
+  new PR, and lists issues #40 and #41 as open. Now: #38 and #40 are CLOSED (23 Oct 05:58:15 and
+  05:58:47 UTC; `gh issue view`), #51 carries P2-G2-T1, #49 carries REQ-p1-37 (D-26). It also
+  says `ListRecords` is `NotImplemented` (REQ-p4-2); #52 implements it (P2-G3-T1). Issues #41
+  (push test) and #44 (P5-G2-T1) are still open.
+- Evidence from #51: p2 deployed the chaincode on a Drunix network and made live calls (p2.md
+  2026-10-23 00:42). U-12 is closed from it (docs/UNKNOWNS.md); U-09 closed as well.
+- Open PRs, both from p5 and both MERGEABLE per `gh pr view`:
+  - #54 p5/g2-api (P5-G2-T1). Changes `frontend/src/api.ts`, `frontend/src/App.tsx`,
+    `frontend/test/api.spec.test.ts`, `docs/logs/p5.md` and `docs/logs/INTEGRATION_LOG.md`. It
+    overlaps the lead's override commit 94b39fb on p1/all-roles-finish in the first three files
+    and will conflict when both land. It also appends a "G0 push-hook test" entry to this log,
+    which is lead-only (AGENTS.md section 2); that entry will conflict with this one at the end of
+    the file. The lead decides which frontend version stays and moves p5's note into p5.md.
+  - #55 p5/g0-push-test (DEP-p1-3). Changes `docs/logs/p5.md` only. Its log (p5.md 2026-10-23
+    22:30) reports the pre-push hook rejecting a push to `develop` of a local bare repository
+    (PASS), and keeps p5's 22 Oct test against `origin` as INCONCLUSIVE. D-28 asks for
+    `git push origin HEAD:develop`, so the lead decides whether the local variant satisfies G0.
+- Override: on 24 Oct 2026 the user told the lead in chat to ignore AGENTS.md ownership and finish
+  the remaining tasks. The lead did the open p4 and p5 tasks on branch p1/all-roles-finish
+  (commits 94b39fb P5-G2/G3 frontend, 84109c0 P4-G3-T3 seed command, 862ee7b demo.sh and logs;
+  branch is 3 commits above develop 2cfa87e). It is not pushed and has no PR yet. The work is
+  recorded in docs/logs/p4.md, p5.md and p1.md under 2026-10-24. p5 should review it (p5.md).
+- Gate status:
+  - G1 declared (merge window 7), unchanged.
+  - G0 not declared: waits for issue #41 and PR #55 (push test, DEP-p1-3). p4's report is YES.
+  - G2 and G3 wait on a live run on the Drunix host: the `needs_g2` / `needs_g3` markers in
+    `tests/integration/test_live_network.py` come off only when the tests pass with `S14_LIVE=1`
+    (D-12). The lead's machine has no Docker and no Drunix network. Chaincode is deployed and
+    answered live calls on p2's machine (p2.md 2026-10-23 00:42), which is not the integration
+    suite.
+  - G4 waits on a run of `bash scripts/demo.sh` (written, syntax-checked with `bash -n`, never run)
+    and then the `v1.0.0` tag (P1-G4-T2).
+- Counts: on the working tree of p1/all-roles-finish the lead measured `uv run pytest -q` on
+  24 Oct 2026: 91 passed, 14 skipped, 1 warning; `npm test` in frontend/: 19 passed. These
+  include uncommitted changes and are not counts of develop 2cfa87e. `check_all.sh` was not run
+  for this entry.

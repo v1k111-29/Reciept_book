@@ -13,10 +13,10 @@ Rule: nobody codes as if an unknown were known. Close an item by writing the evi
 | U-06 | Can a third org be added to the test network (Fabric's `addOrg3` equivalent) | N2, N3 | p3 | after G3 | inspect the test-network folder | OPEN |
 | U-07 | Does TypeScript chaincode build and run on Drunix in practice (only Go samples were seen in the repo) | D-02 | p2 + p3 | G1 | deploy the stub chaincode; log | CLOSED 20 Oct 2026 (p2; evidence below) |
 | U-08 | Private data collections on Drunix: the docs mention a KeyDB transient store, but "private data collections" was not on the pages read; the test network has an `asset-transfer-private-data` example | N1 | p2 | after G3 | deploy the sample with `-cccg`; log | OPEN |
-| U-09 | GitHub Actions versions (`actions/checkout@v4`, `actions/setup-node@v4`, `astral-sh/setup-uv@v5`) and which push restrictions our repo plan offers | CI and branch protection | p1 | G0 | first CI run; settings screen | OPEN |
-| U-10 | Which team member is the lead, and is the lead p1 | D-10 | user | G0 | user confirms | OPEN |
+| U-09 | GitHub Actions versions (`actions/checkout@v4`, `actions/setup-node@v4`, `astral-sh/setup-uv@v5`) and which push restrictions our repo plan offers | CI and branch protection | p1 | G0 | first CI run; settings screen | CLOSED 24 Oct 2026 (p1; evidence below) |
+| U-10 | Which team member is the lead, and is the lead p1 | D-10 | user | G0 | user confirms | OPEN (note 24 Oct 2026: lead has acted as p1 since D-14; the user's formal confirmation is still pending) |
 | U-11 | Which machine(s) can host Drunix (Linux/WSL2, Docker, RAM for YugabyteDB) | G1 feasibility | p3 + all | G0 | the G0 reports | CLOSED 18 Oct 2026 (p3's MacBook is the host machine; evidence below) |
-| U-12 | What the ledger timestamp proves. In Fabric the transaction timestamp comes from the client's proposal [I, verify]; then `ledger_time` shows when a signed record was submitted, not when the real-world step happened | Honest wording in the pitch and UI | p2 | G2 | Fabric/Drunix docs + test; log | OPEN |
+| U-12 | What the ledger timestamp proves. In Fabric the transaction timestamp comes from the client's proposal [I, verify]; then `ledger_time` shows when a signed record was submitted, not when the real-world step happened | Honest wording in the pitch and UI | p2 | G2 | Fabric/Drunix docs + test; log | CLOSED 24 Oct 2026 (p2; evidence below; one residual [I]) |
 
 ## Evidence
 
@@ -163,3 +163,55 @@ output quoted there). Drunix commit 8090e0c, built from source; images `npcioss/
   - `docker ps`: `dev-peer0.org1.example.com-receiptbook_1.0-…` and `dev-peer0.org2…` Up.
   - This ran with the ISS-p3-8 node-runtime workaround; without it is untested, and that the
     substitute image is correct remains [I]. p2 answered REQ-p3-2: keep the workaround for now.
+
+### U-09 (p1, recorded 24 Oct 2026): CLOSED
+
+Source: `docs/logs/p1.md` entries of 18 Oct 2026 (13:45, 14:05, 14:12, 14:25) and 22 Oct 2026
+(ISS-p1-21, branch p1/g1-d28-push-test), `docs/DECISIONS.md` D-16 and D-28, and a read-only check
+by the lead on 24 Oct 2026.
+
+- **Action versions work.** `actions/checkout@v4`, `actions/setup-node@v4` and
+  `astral-sh/setup-uv@v5` ran green on the first CI runs (main 39049689230, develop 39109925150;
+  p1.md 18 Oct 13:45) and are still the versions in `.github/workflows/ci.yml` (lines 28, 29, 43,
+  44). `gh run list` on 24 Oct 2026: latest runs `success` (develop push 23 Oct 05:58 UTC; PR #54
+  and PR #55).
+- **Push restrictions the plan offers.** Personal account, Free plan: GitHub's API answers HTTP 403
+  "Upgrade to GitHub Pro or make this repository public to enable this feature." for rulesets and
+  branch protection while the repo is private (p1.md 18 Oct 14:05). Once the repo was public, the
+  rulesets API worked and `protect-develop` (Repository-admin bypass, pull requests only, five
+  required checks) was created (p1.md 18 Oct 14:12 and 14:25). A personal-account repo has no
+  "restrict who can push" and no admin role for collaborators (p1.md 18 Oct 13:45).
+- **Current state (24 Oct 2026).** `gh api repos/v1k111-29/drunix-hackathon`: `visibility` private,
+  owner type `User`. `GET .../rulesets` returns the same 403. `GET .../branches/develop` reports
+  `protected: false`. So GitHub enforces nothing on `develop`; the pre-push hook is the only guard
+  (ISS-p1-21, D-28). D-16 had assumed the repo stays public; when and by whom it became private again
+  is [U] (as recorded in ISS-p1-21).
+- **Residual [I]:** that GitHub Pro or a public repo would turn the rulesets back on comes from
+  GitHub's own 403 message and the 18 Oct public-repo result; not retried on 24 Oct.
+
+### U-12 (p2, 23 Oct 2026; recorded by p1, 24 Oct 2026): CLOSED, one residual [I]
+
+Source: `docs/logs/p2.md`, entry 2026-10-23 00:42 (P2-G2-T1 deploy + U-12), request REQ-p2-3, plus
+p2's 2026-10-20 15:24 entry (fabric-shim source). PR #51 (p2/g2-chaincode) merged 23 Oct 2026
+05:58 UTC. Drunix network on p2's Mac, our chaincode deployed with `network/deploy.sh`, calls with
+the `peer` CLI endorsed by both lite peers.
+
+- **Source reading (2026-10-20 15:24).** fabric-shim 2.5.8 `lib/stub.js`, `getDateTimestamp()`:
+  "This is taken from the transaction ChannelHeader, therefore it will indicate the client's date,
+  and will have the same value across all endorsers." Our chaincode stores `ctx.stub.getTxTimestamp()`
+  as `ledger_time` (UTC ISO 8601 with `Z`).
+- **Live comparison (2026-10-23 00:42).** Block header `channel_header.timestamp` (set by the
+  submitting client) against what the chaincode stored, same tx_id:
+  - block 6 `19:07:16.437428Z` vs `created_ledger_time` `2026-10-22T19:07:16.437Z`
+  - block 7 `19:07:46.841600Z` vs `ledger_time` `19:07:46.841Z`
+  - block 8 `19:08:17.221975Z` vs `ledger_time` `19:08:17.221Z`
+  The client clock read just before each invoke was `.387` and `.794`, so the header time is set
+  when the client builds the proposal (about 50 ms later), not at commit (each CLI call then waited
+  30 s).
+- **Answer.** `ledger_time` is the submitting client's clock when it built the signed proposal,
+  unchanged by the Drunix peers and truncated to milliseconds. It shows when a signed record was
+  submitted, not when the real-world step happened; that is `occurred_on`, attested by the
+  submitter. A client with a wrong clock puts a wrong time on the ledger. UI and pitch wording must
+  say "submitted at", not "happened at".
+- **Residual [I]:** whether Drunix rejects a proposal whose client clock is far off (a clock-skew
+  check) was not tested.

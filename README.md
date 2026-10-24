@@ -6,8 +6,11 @@ export shipping bill's milestones, kept on **Drunix** (NPCI's Hyperledger Fabric
 Customs' ICES records disagree, everyone can see which step is missing, who signed what, and
 since when. The problem and its evidence are in [`docs/PROBLEM.md`](docs/PROBLEM.md).
 
-**Status:** scaffold (contracts 1.0.0, frozen at G1, D-20; gate G0 not yet declared: p4 and p2 G0 reports outstanding). No feature is built yet;
-the specs that define each feature are in the test folders.
+**Status (24 Oct 2026):** contracts 1.0.0, frozen at G1 (D-20). G1 declared. Essential features
+E1-E10 are built and pass their unit tests on fakes. The live end-to-end suite (`S14_LIVE=1`) and
+the demo script have not yet been run on a Drunix network, and the two-org endorsement check (E3)
+has so far run only on Drunix's `basic` sample, not on our chaincode. So G2 and G3 are not declared. G0 is
+still open (issue #41, the push test; PR #55). The specs that define each feature are in the test folders.
 
 ## Start here
 
@@ -39,5 +42,28 @@ frontend/                    React UI (p5)                    docs/             
 ```bash
 bash scripts/check_all.sh     # Python + chaincode + gateway + frontend, as CI does
 ```
+
+## Run the demo
+
+```bash
+bash scripts/demo.sh          # on the host machine that runs the Drunix network
+```
+
+Needs `network/env.sh` (copy it from `network/env.example.sh` and edit it), docker, uv, node
+and npm; see [`network/README.md`](network/README.md). The script takes the Drunix test network
+down and up again, deploys the chaincode, starts the gateway and the backend, seeds 30
+synthetic records (demo data, labelled synthetic; the hash salt it uses is demo-only), and
+serves the UI at http://localhost:5173. Logs go to `.demo-logs/`.
+
+**Not yet run on a live network.** There is no Drunix host in this checkout, so `demo.sh` is
+untested end to end; the unit tests use fakes. Run it on the host machine and log the output
+in `docs/logs/INTEGRATION_LOG.md` before G4 is declared.
+
+## Per-package READMEs
+
+[`chaincode/README.md`](chaincode/README.md) ·
+[`gateway/README.md`](gateway/README.md) ·
+[`backend/README.md`](backend/README.md) ·
+[`frontend/README.md`](frontend/README.md)
 
 Licence: Apache-2.0 is intended, to match Drunix (lead to add `LICENSE`).

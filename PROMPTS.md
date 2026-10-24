@@ -39,6 +39,19 @@ On develop after merge window 7 (21 Oct 2026, d093bb3) the counts are: Python **
 **6 passed, 9 todo** (UI shell render tests, PR #36).
 Later in merge window 7, PR #35 (FabricLedger tests) took the gateway to **73 passed, 0 todo**.
 
+On branch `p1/all-roles-finish` (24 Oct 2026, on top of develop 2cfa87e, after merge window 8) the
+counts are: Python **91 passed, 14 skipped, 0 xfailed**; chaincode **70 passed**; gateway **73
+passed, 0 todo**; frontend **19 passed, 0 todo**. Since the last listed counts: chaincode went from
+28 to 70 with P2-G2-T1 (CreateRecord, RecordMilestone, GetRecord, PR #51) and P2-G3-T1
+(ListRecords and per-milestone RecordMilestone tests, PR #52); Python went from 64 passed, 4
+xfailed to 91 passed, 0 xfailed with P4-G2-D26 (identifier and gateway-payload validation, PR #49),
+the metrics and list routes (PR #48) and the seed command (P4-G3-T3, this branch); frontend went
+from 6 passed, 9 todo to 19 passed, 0 todo with the api client and the desk, timeline and metrics
+views (P5-G2-T1, P5-G3-T1, this branch); gateway is unchanged. These were measured on this branch
+with `uv run pytest -q` and `npm test` in each package (the 14 skipped Python tests are the live
+tests, which need `S14_LIVE=1`; the 14th is the E9 raw-identifier check added on this branch). They are not yet the develop counts: they become so when this
+branch is merged.
+
 ---
 
 ## A. G0 kickoff prompts (one per person, read-only except for the report)
