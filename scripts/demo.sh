@@ -67,6 +67,12 @@ PIDS+=($!)
 wait_for backend "http://localhost:8000/health"
 
 echo "== seed (synthetic demo data)"
+if [ "${S14_DEMO_HEADLESS:-0}" = 1 ]; then
+  # CI (.github/workflows/live.yml): a failed seed fails the run, and no UI is served.
+  uv run python -m s14.seed --count 30 --backend http://localhost:8000
+  echo "== headless: seed done, UI not started"
+  exit 0
+fi
 uv run python -m s14.seed --count 30 --backend http://localhost:8000 || echo "demo: seed reported errors (see above); UI still starts" >&2
 
 echo "== UI at http://localhost:5173 (Ctrl-C stops everything)"

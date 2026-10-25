@@ -1,0 +1,134 @@
+# Live: the Drunix test network on a GitHub-hosted Linux runner, then the S14_LIVE=1 suite,
+# the E3 endorsement check and the headless demo seed. OWNER: P1. Decision D-33: the runner
+# counts as a host machine for G2-G4 evidence when this workflow is green; each step's output
+# is kept as an artifact and quoted in docs/logs/INTEGRATION_LOG.md.
+# Drunix is pinned to the commit p3 read on 18 Oct 2026 (network/README.md).
+name: live
+on:
+  workflow_dispatch:
+  push:
+    branches: ['p1/g2-live-*']
+
+env:
+  DRUNIX_SHA: 8090e0ce58802c8a0f13d23a6abe5a2d35456cc5
+
+jobs:
+  drunix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash   # -eo pipefail, so a failing command before `| tee` fails its step
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone Drunix at the pinned commit
+        run: |
+          git clone --filter=blob:none https://github.com/npci/drunix "$RUNNER_TEMP/drunix"
+          git -C "$RUNNER_TEMP/drunix" checkout -q "$DRUNIX_SHA"
+          echo "DRUNIX_DIR=$RUNNER_TEMP/drunix" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ runner.temp }}/drunix/go.mod
+          cache-dependency-path: ${{ runner.temp }}/drunix/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Host facts
+        run: |
+          uname -a; nproc; free -h; df -h /
+          docker version --format 'docker {{.Server.Version}}'
+          go version; node --version; jq --version
+
+      - name: Build Drunix host binaries
+        working-directory: ${{ runner.temp }}/drunix
+        run: |
+          make peer orderer configtxgen configtxlator osnadmin cryptogen discover ledgerutil
+          ls build/bin
+
+      - name: Standalone docker-compose and node runtime image (network/README.md, ISS-p2-8, ISS-p3-8)
+        run: |
+          if ! command -v docker-compose >/dev/null; then
+            printf '#!/bin/sh\nexec docker compose "$@"\n' | sudo tee /usr/local/bin/docker-compose >/dev/null
+            sudo chmod +x /usr/local/bin/docker-compose
+          fi
+          docker-compose version
+          docker pull -q hyperledger/fabric-nodeenv:2.5
+          docker tag hyperledger/fabric-nodeenv:2.5 npcioss/fabric-nodeenv:2.5
+          for i in peer orderer vscc; do docker pull -q "npcioss/drunix-$i:1.0.0"; done
+
+      - name: network/env.sh
+        run: |
+          sed "s|^export DRUNIX_DIR=.*|export DRUNIX_DIR=\"$DRUNIX_DIR\"|" network/env.example.sh > network/env.sh
+          cat network/env.sh
+
+      - name: Network up (network/up.sh)
+        run: bash network/up.sh 2>&1 | tee live-up.log
+
+      - name: Deploy receiptbook (network/deploy.sh)
+        run: |
+          bash network/deploy.sh 2>&1 | tee live-deploy.log
+          cd "$DRUNIX_DIR/drunix-network/test-network"
+          export PATH="$PWD/../../build/bin:$PATH" FABRIC_CFG_PATH="$(cd ../config && pwd)"
+          set +eu; source ./scripts/envVar.sh >/dev/null 2>&1; setGlobals 1 1 >/dev/null 2>&1; set -eu
+          peer lifecycle chaincode querycommitted -C receiptbook -n receiptbook 2>&1 | tee -a "$GITHUB_WORKSPACE/live-deploy.log"
+
+      - name: Install
+        run: |
+          uv sync
+          (cd gateway && npm ci --no-audit --no-fund)
+
+      - name: Gateway
+        run: |
+          source network/gateway-env.sh
+          (cd gateway && nohup npm run dev > ../live-gateway.log 2>&1 &)
+          for _ in $(seq 1 60); do curl -fsS localhost:8800/health && exit 0; sleep 2; done
+          cat live-gateway.log; exit 1
+
+      - name: Live suite (S14_LIVE=1)
+        id: suite
+        continue-on-error: true
+        run: |
+          source network/gateway-env.sh
+          S14_LIVE=1 uv run pytest tests/integration -v -rA 2>&1 | tee live-pytest.log
+          exit "${PIPESTATUS[0]}"
+
+      - name: E3 endorsement check on receiptbook
+        id: e3
+        continue-on-error: true
+        run: bash scripts/e3_endorsement_check.sh 2>&1 | tee live-e3.log; exit "${PIPESTATUS[0]}"
+
+      - name: Stop the gateway
+        if: always()
+        run: pkill -f 'tsx src/main.ts' || true
+
+      - name: Demo, headless (scripts/demo.sh, fresh network and seed)
+        id: demo
+        continue-on-error: true
+        run: S14_DEMO_HEADLESS=1 bash scripts/demo.sh 2>&1 | tee live-demo.log; exit "${PIPESTATUS[0]}"
+
+      - name: Container state and logs
+        if: always()
+        run: |
+          mkdir -p live-artifacts/containers
+          docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}' | tee live-artifacts/containers.txt
+          for c in $(docker ps -a --format '{{.Names}}'); do docker logs "$c" > "live-artifacts/containers/$c.log" 2>&1 || true; done
+          cp live-*.log live-artifacts/ 2>/dev/null || true
+          cp -r .demo-logs live-artifacts/ 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-evidence
+          path: live-artifacts/
+          retention-days: 30
+
+      - name: Result
+        if: always()
+        run: |
+          echo "suite=${{ steps.suite.outcome }} e3=${{ steps.e3.outcome }} demo=${{ steps.demo.outcome }}"
+          [ "${{ steps.suite.outcome }}" = success ] && [ "${{ steps.e3.outcome }}" = success ] && [ "${{ steps.demo.outcome }}" = success ]
