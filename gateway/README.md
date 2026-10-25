@@ -103,7 +103,7 @@ measurements. Endorse plus submit plus commit status stay under the 10 s timeout
 ```bash
 cd gateway
 npm ci
-npm run typecheck     # tsc --noEmit (src only; tsconfig does not include test/)
+npm run typecheck     # tsc --noEmit (src, NodeNext) + tsc -p tsconfig.test.json (src + test/)
 npm test              # vitest run (73 tests on 24 Oct 2026)
 npm run build         # tsc -> dist/
 npm run dev           # tsx src/main.ts

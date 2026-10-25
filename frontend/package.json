@@ -2,7 +2,7 @@
   "name": "s14-receipt-book-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "S14 Receipt Book UI: bank, exporters' body and Customs views. Owner: P5.",
+  "description": "S14 Receipt Book UI: Bank desk, Exporters' desk, Timeline and Metrics views. Owner: P5.",
   "type": "module",
   "scripts": {
     "dev": "vite",

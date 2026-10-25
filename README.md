@@ -10,7 +10,7 @@ since when. The problem and its evidence are in [`docs/PROBLEM.md`](docs/PROBLEM
 E1-E10 are built and pass their unit tests on fakes. The live end-to-end suite (`S14_LIVE=1`) and
 the demo script have not yet been run on a Drunix network, and the two-org endorsement check (E3)
 has so far run only on Drunix's `basic` sample, not on our chaincode. So G2 and G3 are not declared. G0 is
-still open (issue #41, the push test; PR #55). The specs that define each feature are in the test folders.
+declared 25 Oct 2026 (merge window 9, D-30). The specs that define each feature are in the test folders.
 
 ## Start here
 
@@ -42,6 +42,10 @@ frontend/                    React UI (p5)                    docs/             
 ```bash
 bash scripts/check_all.sh     # Python + chaincode + gateway + frontend, as CI does
 ```
+
+## Host machine: closing G2-G4
+
+Step-by-step live checks, demo run and gate tags: [`docs/HOST_RUNBOOK.md`](docs/HOST_RUNBOOK.md).
 
 ## Run the demo
 

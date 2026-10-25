@@ -283,3 +283,26 @@ tracks. Newest last.
   #56 (CNF-p1-54 resolved that way); #54 to be closed with a pointer to D-31.
 - The lead's merge of #55 from this session was refused by the tool's permission check
   ("Merge Without Review"). #55, #56 and the closing of #54 wait for the lead to do by hand.
+
+### 2026-10-25 | merge window 9 | develop before 2cfa87e, after 22eb128
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #55 p5/g0-push-test | p5 | merged (25 Oct 00:25 UTC) | 96210fb | docs/logs/p5.md only |
+| #56 p1/all-roles-finish | p1 | merged (25 Oct 00:30 UTC), rebased on 96210fb first | 22eb128 | py 91 passed / 14 skipped, cc 70, gw 73, fe 19 |
+| #54 p5/g2-api | p5 | closed, superseded by #56 (D-31), comment on the PR | n/a | n/a |
+- #56 was rebased on develop after #55. `docs/logs/p5.md` conflicted twice, both times between
+  p5's own entries and the lead's (CNF-p1-56). Resolved by keeping every entry word for word,
+  oldest first: #54's 22 Oct and 23 Oct 21:58 entries, then #55's 23 Oct 22:30 entry, then the
+  24 Oct entry.
+- `bash scripts/check_all.sh` ran on the rebased branch at ceaef52: "all suites green". py 91 passed /
+  14 skipped, cc 70 passed, gw 73 passed, fe 19 passed. CI on #56 passed 5 of 5 checks.
+  `git diff origin/develop ceaef52` is empty, so develop 22eb128 has the same tree. The counts in
+  PROMPTS.md (branch paragraph) are now the develop counts.
+- GitHub auto-merge is disabled for the repo, so each PR was merged by hand after green CI.
+- Still open on GitHub, to be closed by the lead by hand: issue #41 (met by #55 and D-30) and issue
+  #44 (met by #56, D-31). The session tool refused to close them without a direct request.
+- **Gate status: G0 declared.** All five G0 reports say YES (p1, p2, p3, p4 at p4.md 22 Oct 10:10,
+  p5), and the push test passes under D-30 (#55). G1 declared (unchanged). G2 and G3 are open: the
+  `S14_LIVE=1` suite has not run since #51 and #52, and E3 still needs the endorsement negative
+  test on `receiptbook` (DEP-p3-3). G4 is open: `scripts/demo.sh` has not run on the host, and
+  there is no `v1.0.0` tag. The lead's machine has no Docker or WSL, so none of these can run there.

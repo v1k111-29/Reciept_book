@@ -15,7 +15,7 @@ HTTP status from `ERROR_HTTP_STATUS`.
 
 | Route | Request | Response |
 |---|---|---|
-| `GET /health` | none | `{status, contracts_version}` (shape of `HealthResponse`) |
+| `GET /health` | none | `HealthResponse` (`{status, contracts_version}`) |
 | `POST /records` | `CreateRecordRequest` | `TxReceipt` |
 | `POST /records/{sb_hash}/milestones` | `MilestoneRequest` | `TxReceipt` |
 | `GET /records/{sb_hash}` | none | `TimelineView` (record plus assessment) |
@@ -58,8 +58,18 @@ commit. The backend never retries or resubmits it. Instead it reads the record b
 - Otherwise the client gets `OUTCOME_UNKNOWN` (504). The caller should check the record
   before trying again.
 
-`MVCC_CONFLICT` is listed in `RETRYABLE_ERRORS`, but the backend does not retry it today. It
-returns the error (409).
+## Retrying MVCC_CONFLICT
+
+The write routes retry a failed submit only when its error code is in `RETRYABLE_ERRORS`, which
+holds only `MVCC_CONFLICT`. Fabric invalidated that transaction at commit, so nothing was
+recorded and a retry cannot record a milestone twice (D-21). Retry safety on Drunix itself is
+[I] until checked against the live network.
+
+- At most 3 submits in total (`MVCC_MAX_ATTEMPTS` in `s14/api.py`), with a fixed 0.2 s wait
+  between them (`MVCC_RETRY_BACKOFF_SECONDS`; tests set it to 0).
+- If all 3 conflict, the client gets the last `MVCC_CONFLICT` (409).
+- `OUTCOME_UNKNOWN` and every other error are never retried. `OUTCOME_UNKNOWN` goes to the
+  read-back above, even when it follows a conflict.
 
 ## Cause assessment and metrics
 
