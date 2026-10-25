@@ -306,3 +306,21 @@ tracks. Newest last.
   `S14_LIVE=1` suite has not run since #51 and #52, and E3 still needs the endorsement negative
   test on `receiptbook` (DEP-p3-3). G4 is open: `scripts/demo.sh` has not run on the host, and
   there is no `v1.0.0` tag. The lead's machine has no Docker or WSL, so none of these can run there.
+
+### 2026-10-25 | merge window 10 | develop before 22eb128, after 024a671
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #57 p1/g4-hardening | p1 | merged (25 Oct 00:47 UTC) after 5/5 green CI | 024a671 | py 122 passed / 14 skipped, cc 70, gw 73, fe 21 |
+- #57: bounded MVCC_CONFLICT retry and HealthResponse (p4 files), test typecheck in gateway and
+  chaincode (p3, p2), the `/api` proxy for `vite preview` and E8 tests (p5), U-06 and U-08 paper
+  halves, D-32, and docs/HOST_RUNBOOK.md. All of it was done by the lead under the user's override.
+  A review before merge found one real bug: a create that hit MVCC_CONFLICT before OUTCOME_UNKNOWN
+  could be falsely confirmed by read-back. It was fixed in a86606f.
+- `bash scripts/check_all.sh` on develop 024a671 (detached checkout): "all suites green", with the
+  counts above.
+- **Tags:** `g0` on 024a671 (G0 declared in merge window 9; gate-close entry merged with #57) and
+  `g1` on d093bb3, the SHA verified when G1 was declared (merge window 7, 21 Oct). Neither tag
+  existed before, although G1 was declared on 21 Oct. Both follow docs/GIT_WORKFLOW.md "Gate close".
+- Gate status: G0 and G1 closed and tagged. G2, G3 and G4 are open; the steps to close them are in
+  docs/HOST_RUNBOOK.md and need the Drunix host machine.
+- Still open on GitHub (lead to close by hand): issue #41 (met, D-30) and #44 (met, D-31).
