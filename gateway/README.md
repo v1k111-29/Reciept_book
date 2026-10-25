@@ -127,8 +127,9 @@ keeps the file names fixed, so they survive `network/down.sh` + `up.sh` (docs/lo
 Live evidence in `docs/logs/p3.md`: HTTP -> validation -> Drunix -> chaincode -> error mapping
 (2026-10-21 14:24, against the stub chaincode); the commit-code mapping for
 `ENDORSEMENT_POLICY_FAILURE` -> 502 `ENDORSEMENT_FAILED` (2026-10-22 20:22, on Drunix's `basic`
-sample). A successful `/submit` on our own chaincode and the endorsement test on `receiptbook`
-are still logged as pending there (DEP-p3-2, DEP-p3-3).
+sample). On 25 Oct 2026 the live suite (`/submit` and `/evaluate` on `receiptbook`, all five
+milestones and each rejected write) and the endorsement test on `receiptbook` passed in
+`.github/workflows/live.yml` (D-33), which resolves DEP-p3-2 and DEP-p3-3.
 
 ## Known issues
 

@@ -58,6 +58,11 @@ Python **91 passed, 14 skipped**; chaincode **70**; gateway **73**; frontend **1
 skipped**; chaincode **70 passed**; gateway **73 passed**; frontend **21 passed**. Typecheck in
 chaincode and gateway now also checks `test/`.
 
+Branch `p1/g2-live-ci` (26 Oct 2026) removes the live tests' strict-xfail markers after they passed
+on Drunix (D-33), adds one live test and four chaincode tests: Python **122 passed, 15 skipped**;
+chaincode **74 passed**; gateway **73 passed**; frontend **21 passed**. With `S14_LIVE=1` on a
+Drunix network: **14 passed, 1 skipped**.
+
 
 ---
 

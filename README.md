@@ -6,11 +6,13 @@ export shipping bill's milestones, kept on **Drunix** (NPCI's Hyperledger Fabric
 Customs' ICES records disagree, everyone can see which step is missing, who signed what, and
 since when. The problem and its evidence are in [`docs/PROBLEM.md`](docs/PROBLEM.md).
 
-**Status (24 Oct 2026):** contracts 1.0.0, frozen at G1 (D-20). G1 declared. Essential features
-E1-E10 are built and pass their unit tests on fakes. The live end-to-end suite (`S14_LIVE=1`) and
-the demo script have not yet been run on a Drunix network, and the two-org endorsement check (E3)
-has so far run only on Drunix's `basic` sample, not on our chaincode. So G2 and G3 are not declared. G0 is
-declared 25 Oct 2026 (merge window 9, D-30). The specs that define each feature are in the test folders.
+**Status (26 Oct 2026):** contracts 1.0.0, frozen at G1 (D-20). Essential features E1-E10 pass
+their unit tests and, since 25 Oct, the live end-to-end suite on a real Drunix network: 14 live
+tests, the two-org endorsement check on our own chaincode (E3), and the seeded demo with a
+browser check of the UI, all in [`.github/workflows/live.yml`](.github/workflows/live.yml) on a
+GitHub-hosted Linux runner (D-33). Gate status is in
+[`docs/logs/INTEGRATION_LOG.md`](docs/logs/INTEGRATION_LOG.md). The specs that define each feature
+are in the test folders.
 
 ## Start here
 
@@ -59,9 +61,9 @@ down and up again, deploys the chaincode, starts the gateway and the backend, se
 synthetic records (demo data, labelled synthetic; the hash salt it uses is demo-only), and
 serves the UI at http://localhost:5173. Logs go to `.demo-logs/`.
 
-**Not yet run on a live network.** There is no Drunix host in this checkout, so `demo.sh` is
-untested end to end; the unit tests use fakes. Run it on the host machine and log the output
-in `docs/logs/INTEGRATION_LOG.md` before G4 is declared.
+Run headless on a Drunix network in `.github/workflows/live.yml` (D-33): `loaded 30/30`, six
+records in each cause bucket, and a browser check of the four views. Set `S14_DEMO_HEADLESS=1` to
+skip the interactive UI and `S14_DEMO_CHECK` to run a command against it.
 
 ## Per-package READMEs
 
