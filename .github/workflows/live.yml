@@ -136,7 +136,7 @@ jobs:
           docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}' | tee live-artifacts/containers.txt
           for c in $(docker ps -a --format '{{.Names}}'); do docker logs "$c" > "live-artifacts/containers/$c.log" 2>&1 || true; done
           cp live-*.log live-artifacts/ 2>/dev/null || true
-          cp -r .demo-logs live-artifacts/ 2>/dev/null || true
+          cp -r .demo-logs live-artifacts/demo-logs 2>/dev/null || true   # upload-artifact skips dot-dirs
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -50,9 +50,10 @@ try {
   step("open the timeline");
   await page.getByRole("navigation", { name: "Main views" }).getByRole("button", { name: "Timeline" }).click();
   const timeline = page.getByRole("region", { name: "Shipping bill timeline" });
-  await timeline.getByText("PAYMENT RECEIVED").first().waitFor({ timeout: 30_000 });
-  if (!(await timeline.textContent()).includes(sbHash)) throw new Error("timeline does not show the new record's hash");
-  step("timeline shows the record and PAYMENT RECEIVED");
+  // The timeline shows a hash's first 12 characters; the new record opens on its own (focus).
+  const article = timeline.getByRole("article").filter({ hasText: `Shipping bill: ${sbHash.slice(0, 12)}` });
+  await article.getByText("PAYMENT RECEIVED").waitFor({ timeout: 30_000 });
+  step(`timeline: ${(await article.textContent()).replace(/\s+/g, " ").slice(0, 300)}`);
   await shot("3-timeline");
 
   step("check the metrics view");
