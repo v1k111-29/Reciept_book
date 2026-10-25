@@ -19,3 +19,4 @@ CLAUDE.local.md
 .claude/settings.local.json
 # os
 .DS_Store
+.demo-logs/

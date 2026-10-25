@@ -14,22 +14,29 @@ it turns red on purpose: remove its marker in the same commit (decision D-12).
 
 from __future__ import annotations
 
+import json
 import os
+import re
+import uuid
 from datetime import date
 
 import pytest
 
 from s14.contracts import (
     DEFAULT_MSP_ROLES,
+    HASH_PATTERN,
     WRITER_ROLE,
     ChaincodeFunction,
     CustomsStatus,
     ErrorCode,
     GatewayResult,
     Milestone,
+    MilestoneSubmission,
     OrgRole,
+    ShippingBillRecord,
 )
-from tests.integration.live_client import LiveGateway, submission
+from s14.domain.hashing import canonical_sb_string, reference_hash, shipping_bill_hash
+from tests.integration.live_client import LiveGateway, parse_payload, submission
 
 live = pytest.mark.skipif(os.environ.get("S14_LIVE") != "1", reason="needs Drunix network (S14_LIVE=1)")
 needs_g2 = pytest.mark.xfail(
@@ -141,6 +148,47 @@ def test_all_five_milestones_in_order(gw: LiveGateway, sb_hash: str):
 def test_list_records_includes_a_new_record(gw: LiveGateway, sb_hash: str):
     assert gw.create_record(sb_hash).ok
     assert sb_hash in {r.sb_hash for r in gw.list_records()}
+
+
+@live
+@needs_g3
+def test_no_raw_identifiers_on_the_ledger(gw: LiveGateway):
+    # E9: the backend's hashing (s14.domain.hashing) turns known raw numbers into salted
+    # hashes; only those reach the ledger. Raw values are synthetic and fresh per run.
+    salt = os.environ.get("S14_HASH_SALT") or "s14-live-synthetic-test-salt"
+    tag = uuid.uuid4().hex[:10].upper()
+    sb_number, port_code, sb_date = f"SYNSB{tag}", "SYNPORT", date.today()
+    raw_refs = {
+        Milestone.DOCS_ACKNOWLEDGED: f"SYN-DOCS-{tag}",
+        Milestone.PAYMENT_RECEIVED: f"SYN-IRM-{tag}",
+        Milestone.EBRC_SELF_CERTIFIED: f"SYN-EBRC-{tag}",
+    }
+    sb_hash = shipping_bill_hash(sb_number, port_code, sb_date, salt)
+    assert gw.create_record(sb_hash).ok
+    for milestone, raw in raw_refs.items():
+        sub = MilestoneSubmission(
+            sb_hash=sb_hash, milestone=milestone, occurred_on=date.today(), reference_hash=reference_hash(raw, salt)
+        )
+        result = gw.record_milestone(sub, WRITER_ROLE[milestone])
+        assert result.ok, result.error
+
+    reads = [
+        gw.evaluate(ChaincodeFunction.GET_RECORD, [sb_hash], OrgRole.AD_BANK),
+        gw.evaluate(ChaincodeFunction.GET_RECORD, [sb_hash], OrgRole.EXPORTERS_BODY),
+        gw.evaluate(ChaincodeFunction.LIST_RECORDS, [], OrgRole.AD_BANK),
+    ]
+    assert all(r.ok for r in reads), [r.error for r in reads]
+    # Case-insensitive: every raw value has letters outside 0-9a-f, so a hash can't match by chance.
+    ledger_json = " ".join(json.dumps(parse_payload(r.payload)) for r in reads).upper()
+    for raw in [sb_number, canonical_sb_string(sb_number, port_code, sb_date), *raw_refs.values()]:
+        assert raw.upper() not in ledger_json, f"raw value {raw!r} found on the ledger"
+
+    record = ShippingBillRecord.model_validate(parse_payload(reads[0].payload))
+    assert re.fullmatch(HASH_PATTERN, record.sb_hash)
+    assert [e.milestone for e in record.events] == list(raw_refs)
+    for event, raw in zip(record.events, raw_refs.values(), strict=True):
+        assert event.reference_hash is not None and re.fullmatch(HASH_PATTERN, event.reference_hash)
+        assert event.reference_hash == reference_hash(raw, salt)
 
 
 # One rejected write per ErrorCode the chaincode raises. ENDORSEMENT_FAILED and
