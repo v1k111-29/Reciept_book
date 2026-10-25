@@ -1,13 +1,18 @@
 """FastAPI app. Owner: P4. Routes must match contracts.BACKEND_ROUTES.
 
 Run locally: uv run uvicorn s14.api:app --app-dir backend --port 8000
-Routes are implemented by gate; /health is available from G0.
+All routes in contracts.BACKEND_ROUTES are implemented.
+
+Write routes retry a failed submit only when its error code is in RETRYABLE_ERRORS
+(MVCC_CONFLICT), up to MVCC_MAX_ATTEMPTS attempts in total with a fixed backoff. They never
+retry OUTCOME_UNKNOWN: that write may still commit, so the record is read back instead (D-21).
 """
 
 from __future__ import annotations
 
 import json
 import os
+import time
 
 from fastapi import Depends, FastAPI, Path, Request
 from fastapi.exceptions import RequestValidationError
@@ -25,11 +30,13 @@ from s14.contracts import (
     ErrorCode,
     GatewayRequest,
     GatewayResult,
+    HealthResponse,
     MetricsSummary,
     Milestone,
     OrgRole,
     MilestoneRequest,
     MilestoneSubmission,
+    RETRYABLE_ERRORS,
     ShippingBillRecord,
     TimelineView,
     TxReceipt,
@@ -46,6 +53,11 @@ from s14.gateway_client import Gateway, HttpGateway
 
 app = FastAPI(title="S14 Receipt Book API", version="0.1.0")
 _RECORDS_ADAPTER = TypeAdapter(list[ShippingBillRecord])
+
+# Bounded retry of submits that failed with a code in RETRYABLE_ERRORS (REQ-p1-34, D-21).
+# Total attempts, including the first. Tests set the backoff to 0.
+MVCC_MAX_ATTEMPTS = 3
+MVCC_RETRY_BACKOFF_SECONDS = 0.2
 
 
 @app.exception_handler(RequestValidationError)
@@ -93,6 +105,22 @@ def _list_records(gateway: Gateway) -> list[ShippingBillRecord] | JSONResponse:
         )
 
 
+def _submit(gateway: Gateway, request: GatewayRequest) -> GatewayResult:
+    """Submit a write, retrying only errors in RETRYABLE_ERRORS, at most MVCC_MAX_ATTEMPTS times.
+
+    Any other result, OUTCOME_UNKNOWN included, is returned after the first attempt.
+    """
+    attempt = 1
+    while True:
+        result = gateway.submit(request)
+        retryable = not result.ok and result.error is not None and result.error.code in RETRYABLE_ERRORS
+        if not retryable or attempt >= MVCC_MAX_ATTEMPTS:
+            return result
+        attempt += 1
+        if MVCC_RETRY_BACKOFF_SECONDS > 0:
+            time.sleep(MVCC_RETRY_BACKOFF_SECONDS)
+
+
 def _unknown_write_committed(
     gateway: Gateway,
     sb_hash: str,
@@ -128,9 +156,9 @@ def _hash_salt() -> str | JSONResponse:
     return salt
 
 
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "contracts_version": CONTRACTS_VERSION}
+@app.get("/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    return HealthResponse(status="ok", contracts_version=CONTRACTS_VERSION)
 
 
 @app.post("/records", response_model=TxReceipt)
@@ -148,12 +176,13 @@ def create_record(
         return salt
 
     sb_hash = shipping_bill_hash(request.sb_number, request.port_code, request.sb_date, salt)
-    result = gateway.submit(
+    result = _submit(
+        gateway,
         GatewayRequest(
             function=ChaincodeFunction.CREATE_RECORD,
             args=(sb_hash,),
             identity=CREATE_RECORD_ROLE,
-        )
+        ),
     )
     if not result.ok:
         if (
@@ -196,12 +225,13 @@ def record_milestone(
         customs_status=request.customs_status,
     )
 
-    result = gateway.submit(
+    result = _submit(
+        gateway,
         GatewayRequest(
             function=ChaincodeFunction.RECORD_MILESTONE,
             args=(json.dumps(submission.model_dump(mode="json", exclude_none=True), separators=(",", ":")),),
             identity=request.acting_as,
-        )
+        ),
     )
     if not result.ok:
         if (
