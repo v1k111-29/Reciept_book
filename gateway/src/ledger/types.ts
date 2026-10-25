@@ -1,9 +1,10 @@
 /**
  * What the HTTP server needs from the ledger. OWNER: P3.
  *
- * The real implementation (Fabric Gateway, G2 part 2) converts Fabric's EndorseError, SubmitError,
- * CommitError and CommitStatusError into a LedgerError, so server.ts never sees Fabric types and
- * tests can use a fake Ledger.
+ * The real implementation (ledger/fabric.ts) converts Fabric's EndorseError, GatewayError,
+ * SubmitError and CommitStatusError into a LedgerError, and turns an unsuccessful commit status
+ * (from getStatus() after submitAsync) into a "commit" LedgerError, so server.ts never sees Fabric
+ * types and tests can use a fake Ledger.
  */
 import type { ChaincodeFunction, OrgRole } from "../generated/contracts.js";
 
