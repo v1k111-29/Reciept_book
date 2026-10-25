@@ -23,6 +23,16 @@ import { checkMilestone, RuleError, validateSubmission } from "./rules";
 export const MILESTONE_RECORDED_EVENT = "MilestoneRecorded";
 
 /**
+ * Page size for ListRecords' range query (ISS-p2-10). Drunix's SQL state DB caps a range scan
+ * without pagination at 10 rows: npci/drunix@8090e0c, core/ledger/kvledger/txmgmt/statedb/
+ * statesqldb/statesqldb.go:221-223. Its bookmark for the next page also looks broken there
+ * (SqlScanner.GetBookmarkAndClose, same file:492) [I], so one page may be all a call returns:
+ * keep this well above the number of records. Rows are read one by one, so a large page costs
+ * nothing when there are few records.
+ */
+export const LIST_PAGE_SIZE = 1000;
+
+/**
  * The transaction timestamp as ISO 8601 UTC with "Z" (ISS-p2-2). fabric-shim takes it from the
  * proposal's channel header: the submitting client's clock, the same on every endorser. So it
  * shows when the signed record was submitted, not when the real-world step happened (U-12).
@@ -120,24 +130,35 @@ export class ReceiptBook extends Contract {
   }
 
   /**
-   * ListRecords() -> ShippingBillRecord[] JSON: every record, in key (sb_hash) order, from a range
-   * query over all keys. Only keys that are sb_hashes are records; anything else is skipped.
+   * ListRecords() -> ShippingBillRecord[] JSON: every record, in key (sb_hash) order, from a paged
+   * range query over all keys (ISS-p2-10). Only keys that are sb_hashes are records; anything else
+   * is skipped. Pages stop at an empty or repeated bookmark, or a short page. Keys seen twice are
+   * kept once, and the result is sorted here: Drunix's SQL scan has no ORDER BY [I].
    */
   @Transaction(false)
   public async ListRecords(ctx: Context): Promise<string> {
-    const records: ShippingBillRecord[] = [];
-    const iterator = await ctx.stub.getStateByRange("", "");
-    try {
-      for (;;) {
-        const res = await iterator.next();
-        if (res.value && HASH_PATTERN.test(res.value.key)) {
-          records.push(JSON.parse(Buffer.from(res.value.value).toString("utf8")) as ShippingBillRecord);
+    const records = new Map<string, ShippingBillRecord>();
+    const bookmarks = new Set<string>();
+    let bookmark = "";
+    for (;;) {
+      const { iterator, metadata } = await ctx.stub.getStateByRangeWithPagination("", "", LIST_PAGE_SIZE, bookmark);
+      try {
+        for (;;) {
+          const res = await iterator.next();
+          if (res.value && HASH_PATTERN.test(res.value.key)) {
+            records.set(res.value.key, JSON.parse(Buffer.from(res.value.value).toString("utf8")) as ShippingBillRecord);
+          }
+          if (res.done) break;
         }
-        if (res.done) break;
+      } finally {
+        await iterator.close();
       }
-    } finally {
-      await iterator.close();
+      const next = metadata?.bookmark ?? "";
+      if (!next || (metadata.fetchedRecordsCount ?? 0) < LIST_PAGE_SIZE || bookmarks.has(next)) break;
+      bookmarks.add(next);
+      bookmark = next;
     }
-    return JSON.stringify(records);
+    const keys = [...records.keys()].sort();
+    return JSON.stringify(keys.map((k) => records.get(k)));
   }
 }

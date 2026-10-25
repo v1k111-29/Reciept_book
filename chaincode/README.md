@@ -117,5 +117,8 @@ bash network/deploy.sh    # packages this folder with -ccl typescript and the AN
 - The endorsement negative test (one org alone cannot write) was run on Drunix's `basic` sample,
   not yet on `receiptbook` (DEP-p3-3, `docs/logs/p3.md`, 2026-10-22 20:22).
 - The live `WRONG_BANK` test needs a second AD bank org (N2). It is covered by unit tests only.
-- `ListRecords` is a range query over all keys. Behaviour with many records is untested; we make
-  no claim about scale.
+- `ListRecords` is a paged range query over all keys (`LIST_PAGE_SIZE` = 1000), sorted and
+  de-duplicated in the chaincode (ISS-p2-10). Drunix's SQL state DB caps an unpaged range scan at
+  10 rows (source-verified), and its next-page bookmark looks broken [I], so on Drunix one call
+  may return at most 1000 records. Behaviour with many records is untested; we make no claim
+  about scale.

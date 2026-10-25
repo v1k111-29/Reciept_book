@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Context } from "fabric-contract-api";
-import { ledgerTime, MILESTONE_RECORDED_EVENT, ReceiptBook } from "../src/receiptBook";
+import { ledgerTime, LIST_PAGE_SIZE, MILESTONE_RECORDED_EVENT, ReceiptBook } from "../src/receiptBook";
 import { RuleError } from "../src/rules";
 import {
   MilestoneEvent, MilestoneSubmission, PRECONDITIONS, REFERENCE_REQUIRED, REPEATABLE, ShippingBillRecord, WRITER_ROLE,
@@ -16,13 +16,24 @@ const REF = "b".repeat(64);
 const TX_SECONDS = 1793523600;
 const TX_ISO = "2026-11-01T09:00:00.123Z";
 
+/**
+ * How the fake state DB answers a paged range query. Defaults behave like fabric-shim over LevelDB:
+ * keys in order, bookmark = the first key not yet returned, or "" at the end. `order` and `bookmark`
+ * let a test act like Drunix's SQL state DB (no ORDER BY, unreliable bookmark; ISS-p2-10).
+ */
+interface RangeOpts {
+  order?: (keys: string[]) => string[];
+  bookmark?: (next: string) => string;
+}
+
 /** A fake ledger shared by several transactions, like one channel's world state. */
-function ledger() {
+function ledger(opts: RangeOpts = {}) {
   const state = new Map<string, Uint8Array>();
   const events: { name: string; payload: string }[] = [];
   let puts = 0;
   let n = 0;
   let closed = 0;
+  const ranges: { start: string; pageSize: number; bookmark: string }[] = [];
   const ctx = (msp: string, seconds: number | { toString(): string } = TX_SECONDS, nanos = 123_456_789) => {
     const txId = `tx${++n}`;
     return {
@@ -33,15 +44,23 @@ function ledger() {
         getTxID: () => txId,
         getTxTimestamp: () => ({ seconds, nanos }),
         setEvent: (name: string, payload: Uint8Array) => events.push({ name, payload: Buffer.from(payload).toString() }),
-        // Like fabric-shim: {value: {key, value}, done: false} per key in key order, then {done: true}.
-        getStateByRange: async (start: string, end: string) => {
-          const keys = [...state.keys()].filter((k) => k >= start && (end === "" || k < end)).sort();
+        // Like fabric-shim: {iterator, metadata}; the iterator gives {value: {key, value}, done: false}
+        // per key, then {done: true}. A non-empty bookmark replaces startKey, as in the peer's handler.
+        getStateByRangeWithPagination: async (start: string, end: string, pageSize: number, bookmark = "") => {
+          ranges.push({ start, pageSize, bookmark });
+          const from = bookmark || start;
+          const all = [...state.keys()].filter((k) => k >= from && (end === "" || k < end)).sort();
+          const keys = (opts.order ?? ((k) => k))(all.slice(0, pageSize));
+          const next = all[pageSize] ?? "";
           let i = 0;
           return {
-            next: async () => (i < keys.length
-              ? { value: { key: keys[i], value: Buffer.from(state.get(keys[i++])!) }, done: false }
-              : { done: true }),
-            close: async () => { closed++; },
+            iterator: {
+              next: async () => (i < keys.length
+                ? { value: { key: keys[i], value: Buffer.from(state.get(keys[i++])!) }, done: false }
+                : { done: true }),
+              close: async () => { closed++; },
+            },
+            metadata: { fetchedRecordsCount: keys.length, bookmark: (opts.bookmark ?? ((b) => b))(next) },
           };
         },
       },
@@ -50,7 +69,7 @@ function ledger() {
   const stored = (k: string): ShippingBillRecord => JSON.parse(Buffer.from(state.get(k)!).toString());
   /** Put a record straight into state, e.g. one created by another bank. */
   const seed = (r: ShippingBillRecord) => state.set(r.sb_hash, Buffer.from(JSON.stringify(r)));
-  return { ctx, stored, seed, events, puts: () => puts, closed: () => closed };
+  return { ctx, stored, seed, events, ranges, puts: () => puts, closed: () => closed };
 }
 
 const cc = new ReceiptBook();
@@ -275,5 +294,47 @@ describe("ListRecords", () => {
     const list: ShippingBillRecord[] = JSON.parse(await cc.ListRecords(l.ctx("Org1MSP")));
     expect(list.map((r) => r.sb_hash)).toEqual([SB]);
     expect(l.closed()).toBe(1);
+  });
+
+  /** n records with distinct sb_hashes, seeded in reverse key order; returns the hashes in key order. */
+  const many = (l: ReturnType<typeof ledger>, n: number) => {
+    const hashes = Array.from({ length: n }, (_, i) => i.toString(16).padStart(64, "0"));
+    for (const h of [...hashes].reverse()) l.seed({ sb_hash: h, bank_msp: "Org1MSP", created_ledger_time: TX_ISO, events: [] });
+    return hashes;
+  };
+
+  it("pages through more than one page, in full and in order (ISS-p2-10)", async () => {
+    const l = ledger();
+    const hashes = many(l, 2 * LIST_PAGE_SIZE + 5);
+    l.seed({ sb_hash: "not-a-record", bank_msp: "x", created_ledger_time: TX_ISO, events: [] });
+    const list: ShippingBillRecord[] = JSON.parse(await cc.ListRecords(l.ctx("Org1MSP")));
+    expect(list.map((r) => r.sb_hash)).toEqual(hashes);
+    expect(l.ranges).toEqual([
+      { start: "", pageSize: LIST_PAGE_SIZE, bookmark: "" },
+      { start: "", pageSize: LIST_PAGE_SIZE, bookmark: hashes[LIST_PAGE_SIZE] },
+      { start: "", pageSize: LIST_PAGE_SIZE, bookmark: hashes[2 * LIST_PAGE_SIZE] },
+    ]);
+    expect(l.closed()).toBe(3);
+  });
+  it("stops when a full page comes back with the same bookmark again, without duplicates", async () => {
+    const l = ledger({ bookmark: () => "0".repeat(64) });
+    const hashes = many(l, 3 * LIST_PAGE_SIZE);
+    const list: ShippingBillRecord[] = JSON.parse(await cc.ListRecords(l.ctx("Org1MSP")));
+    expect(l.ranges.map((r) => r.bookmark)).toEqual(["", "0".repeat(64)]);
+    expect(list.map((r) => r.sb_hash)).toEqual(hashes.slice(0, LIST_PAGE_SIZE));
+    expect(l.closed()).toBe(2);
+  });
+  it("stops after one page when the bookmark is empty, as Drunix's SQL state DB may return [I]", async () => {
+    const l = ledger({ bookmark: () => "" });
+    const hashes = many(l, LIST_PAGE_SIZE + 1);
+    const list: ShippingBillRecord[] = JSON.parse(await cc.ListRecords(l.ctx("Org1MSP")));
+    expect(l.ranges).toHaveLength(1);
+    expect(list.map((r) => r.sb_hash)).toEqual(hashes.slice(0, LIST_PAGE_SIZE));
+  });
+  it("sorts by sb_hash when the state DB returns rows out of order", async () => {
+    const l = ledger({ order: (k) => [...k].reverse() });
+    const hashes = many(l, 30);
+    const list: ShippingBillRecord[] = JSON.parse(await cc.ListRecords(l.ctx("Org2MSP")));
+    expect(list.map((r) => r.sb_hash)).toEqual(hashes);
   });
 });
