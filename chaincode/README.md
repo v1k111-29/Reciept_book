@@ -79,7 +79,7 @@ Every endorser must build a byte-identical result, so the code never reads the p
 ```bash
 cd chaincode
 npm ci
-npm run typecheck     # tsc --noEmit
+npm run typecheck     # tsc --noEmit (src), then tsc -p tsconfig.test.json (src + test + vitest config)
 npm test              # vitest run (70 tests on 24 Oct 2026: 2 parity + 26 rules + 42 receiptBook)
 npm run build         # tsc -> dist/ (the peer runs dist/index.js via `npm start`)
 ```
