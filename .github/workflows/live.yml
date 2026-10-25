@@ -9,6 +9,9 @@ on:
   push:
     branches: ['p1/g2-live-*']
 
+permissions:
+  contents: read
+
 env:
   DRUNIX_SHA: 8090e0ce58802c8a0f13d23a6abe5a2d35456cc5
 

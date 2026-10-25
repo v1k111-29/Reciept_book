@@ -20,6 +20,9 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 const shot = (name) => page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true });
 const step = (msg) => console.log(`ui: ${msg}`);
+const pageErrors = [];
+page.on("pageerror", (err) => pageErrors.push(err.message));
+page.on("console", (msg) => msg.type() === "error" && pageErrors.push(msg.text()));
 
 try {
   await page.goto(BASE);
@@ -38,7 +41,7 @@ try {
   await shot("1-created");
 
   step("record PAYMENT_RECEIVED on it");
-  await page.getByRole("button", { name: "PAYMENT RECEIVED" }).click();
+  await page.getByRole("button", { name: "PAYMENT RECEIVED", exact: true }).click();
   const ms = page.getByRole("form", { name: "Record milestone" });
   await ms.getByLabel("Occurred on").fill("2026-10-05");
   await ms.getByLabel(/Reference/).fill(`SYNTHETIC-IRM-${ident}`);
@@ -52,7 +55,8 @@ try {
   const timeline = page.getByRole("region", { name: "Shipping bill timeline" });
   // The timeline shows a hash's first 12 characters; the new record opens on its own (focus).
   const article = timeline.getByRole("article").filter({ hasText: `Shipping bill: ${sbHash.slice(0, 12)}` });
-  await article.getByText("PAYMENT RECEIVED").waitFor({ timeout: 30_000 });
+  await article.getByText("PAYMENT RECEIVED", { exact: true }).waitFor({ timeout: 30_000 });
+  await article.getByText("Occurred on: 2026-10-05", { exact: true }).waitFor();
   step(`timeline: ${(await article.textContent()).replace(/\s+/g, " ").slice(0, 300)}`);
   await shot("3-timeline");
 
@@ -62,8 +66,14 @@ try {
   await metrics.waitFor();
   await page.waitForLoadState("networkidle");
   if (await metrics.getByRole("alert").count()) throw new Error(`metrics error: ${await metrics.getByRole("alert").textContent()}`);
-  step(`metrics: ${(await metrics.textContent()).replace(/\s+/g, " ").slice(0, 400)}`);
+  await metrics.getByText(/^Records in demo: \d+$/).waitFor({ timeout: 30_000 });
+  const text = (await metrics.textContent()).replace(/\s+/g, " ");
+  const count = Number(text.match(/Records in demo: (\d+)/)[1]);
+  if (count < 31) throw new Error(`metrics count ${count}, expected at least 31 (30 seeded + 1 here)`);
+  if (/NaN|undefined|null/.test(text)) throw new Error(`metrics shows an empty value: ${text}`);
+  step(`metrics: ${text.slice(0, 400)}`);
   await shot("4-metrics");
+  if (pageErrors.length) throw new Error(`browser errors: ${pageErrors.join(" | ")}`);
   step("PASS");
 } catch (err) {
   await shot("failure").catch(() => {});
