@@ -68,9 +68,14 @@ wait_for backend "http://localhost:8000/health"
 
 echo "== seed (synthetic demo data)"
 if [ "${S14_DEMO_HEADLESS:-0}" = 1 ]; then
-  # CI (.github/workflows/live.yml): a failed seed fails the run, and no UI is served.
+  # CI (.github/workflows/live.yml): a failed seed fails the run. The UI runs in the background
+  # only while S14_DEMO_CHECK (a command, e.g. the UI smoke test) runs; its status is ours.
   uv run python -m s14.seed --count 30 --backend http://localhost:8000
-  echo "== headless: seed done, UI not started"
+  (cd frontend && exec npm run dev -- --port 5173 --strictPort >"$LOGS/frontend.log" 2>&1) &
+  PIDS+=($!)
+  wait_for UI "http://localhost:5173"
+  echo "== headless check: ${S14_DEMO_CHECK:-none}"
+  if [ -n "${S14_DEMO_CHECK:-}" ]; then bash -c "$S14_DEMO_CHECK"; fi
   exit 0
 fi
 uv run python -m s14.seed --count 30 --backend http://localhost:8000 || echo "demo: seed reported errors (see above); UI still starts" >&2

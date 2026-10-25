@@ -1,8 +1,15 @@
 # HOST_RUNBOOK.md: closing G2, G3 and G4 on the host machine
 
-*Owner: p1. Written 25 Oct 2026. Everything here needs the machine that runs the Drunix network
-(U-11; p3's or p2's Mac in the logs). The lead's Windows machine has no Docker or WSL, so none
-of it has run yet. Run the steps in order and paste each output into the log named.*
+*Owner: p1. Written 25 Oct 2026. Everything here needs a machine that runs the Drunix network
+(U-11; p3's or p2's Mac in the logs). Run the steps in order and paste each output into the log
+named.*
+
+**Without a host machine (D-33):** `.github/workflows/live.yml` runs steps 1 to 4 on a
+GitHub-hosted Linux runner: it builds the Drunix binaries at the pinned commit, brings the network
+up, deploys `receiptbook`, runs the live suite, `scripts/e3_endorsement_check.sh`, and
+`scripts/demo.sh` headless with the UI smoke test (`scripts/ui_smoke.mjs`). It runs on a push to
+a `p1/g2-live-*` branch or by hand (`gh workflow run live.yml --ref develop`). The evidence is the
+run's `live-evidence` artifact (logs, container logs, UI screenshots).
 
 ## 0. Before you start
 
@@ -32,16 +39,16 @@ source network/gateway-env.sh && (cd gateway && npm run dev) &      # gateway on
 S14_LIVE=1 uv run pytest tests/integration -v
 ```
 
-A test marked `needs_g2` or `needs_g3` (strict xfail, D-12) that now passes shows up as
-**XPASS(strict)** and fails the run. That is on purpose. For each one:
-1. Remove its marker in `tests/integration/test_live_network.py`.
-2. Rerun until the suite is green.
-3. Commit on a `p1/g2-live-…` branch with the full pytest output in `docs/logs/p1.md`.
+The `needs_g2` / `needs_g3` strict-xfail markers came off on 25 Oct 2026, after every live test
+passed on Drunix in `live.yml` (D-33). Every live test must now pass.
 
-A test that still fails is a real bug. Log it as an ISS with the output and assign it to the owner
+A test that fails is a real bug. Log it as an ISS with the output and assign it to the owner
 of the failing side. `test_rejects_other_bank_wrong_bank` stays skipped until N2 (a second bank org).
 
 ## 3. E3 on our chaincode (DEP-p3-3, P3-G3-T1)
+
+`bash scripts/e3_endorsement_check.sh` does the steps below and exits non-zero if the result is
+wrong.
 
 Repeat p3's 22 Oct negative test (`docs/logs/p3.md`, done on the `basic` sample) on
 `receiptbook`: submit a `CreateRecord` endorsed by Org1's peer only. Expect it to be ordered, then

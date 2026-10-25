@@ -106,10 +106,28 @@ jobs:
         if: always()
         run: pkill -f 'tsx src/main.ts' || true
 
-      - name: Demo, headless (scripts/demo.sh, fresh network and seed)
+      - name: Browser for the UI smoke test (CI only, not a project dependency)
+        run: |
+          npm i --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/pw" playwright@1.49.1
+          (cd "$RUNNER_TEMP/pw" && npx playwright install --with-deps chromium)
+
+      - name: Demo, headless (scripts/demo.sh, fresh network, seed, UI smoke test)
         id: demo
         continue-on-error: true
-        run: S14_DEMO_HEADLESS=1 bash scripts/demo.sh 2>&1 | tee live-demo.log; exit "${PIPESTATUS[0]}"
+        env:
+          S14_DEMO_HEADLESS: '1'
+          S14_DEMO_CHECK: NODE_PATH=${{ runner.temp }}/pw/node_modules node scripts/ui_smoke.mjs
+        run: |
+          bash scripts/demo.sh 2>&1 | tee live-demo.log
+          # HOST_RUNBOOK step 4: a fresh network holds exactly the 30 seeded records, 6 per bucket.
+          grep -q "loaded 30/30" live-demo.log
+          python3 -I - live-demo.log <<'PY'
+          import ast, re, sys
+          line = re.search(r"on ledger by cause bucket: (\{.*\})", open(sys.argv[1]).read()).group(1)
+          counts = ast.literal_eval(line)
+          print("on ledger by cause bucket:", counts)
+          assert len(counts) == 5 and set(counts.values()) == {6}, counts
+          PY
 
       - name: Container state and logs
         if: always()

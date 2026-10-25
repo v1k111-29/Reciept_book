@@ -8,8 +8,8 @@ machine that hosts the network, at G2 and every gate after:
 They go through P3's gateway (GatewayRequest -> GatewayResult), so they check the
 chaincode, the gateway and the network together. The client is in live_client.py.
 
-Tests marked xfail(strict) describe work that is not deployed yet. When one starts passing
-it turns red on purpose: remove its marker in the same commit (decision D-12).
+The needs_g2 / needs_g3 strict-xfail markers (D-12) came off on 25 Oct 2026, when every
+test passed on a real Drunix network (.github/workflows/live.yml, D-33).
 """
 
 from __future__ import annotations
@@ -36,15 +36,9 @@ from s14.contracts import (
     ShippingBillRecord,
 )
 from s14.domain.hashing import canonical_sb_string, reference_hash, shipping_bill_hash
-from tests.integration.live_client import LiveGateway, parse_payload, submission
+from tests.integration.live_client import LiveGateway, parse_payload, submission, synthetic_hash
 
 live = pytest.mark.skipif(os.environ.get("S14_LIVE") != "1", reason="needs Drunix network (S14_LIVE=1)")
-needs_g2 = pytest.mark.xfail(
-    strict=True, reason="P1-G2-T1: needs P2-G2-T1 + P3-G2-T1 deployed; remove marker when it passes"
-)
-needs_g3 = pytest.mark.xfail(
-    strict=True, reason="P1-G3-T1: needs P2-G3-T1 deployed; remove marker when it passes"
-)
 
 
 def msp_of(role: OrgRole) -> str:
@@ -77,7 +71,6 @@ def test_gateway_health(gw: LiveGateway):
 
 
 @live
-@needs_g2
 def test_create_record_and_payment_milestone_roundtrip(gw: LiveGateway, sb_hash: str):
     created = gw.create_record(sb_hash, OrgRole.AD_BANK)
     assert created.ok, created.error
@@ -101,7 +94,6 @@ def test_create_record_and_payment_milestone_roundtrip(gw: LiveGateway, sb_hash:
 
 
 @live
-@needs_g2
 def test_both_orgs_read_the_same_record(gw: LiveGateway, sb_hash: str):
     assert gw.create_record(sb_hash).ok
     write(gw, sb_hash, Milestone.PAYMENT_RECEIVED)
@@ -109,7 +101,6 @@ def test_both_orgs_read_the_same_record(gw: LiveGateway, sb_hash: str):
 
 
 @live
-@needs_g2
 def test_get_unknown_record_is_not_found(gw: LiveGateway, sb_hash: str):
     result = gw.evaluate(ChaincodeFunction.GET_RECORD, [sb_hash], OrgRole.AD_BANK)
     assert_rejected(result, ErrorCode.NOT_FOUND)
@@ -119,7 +110,6 @@ def test_get_unknown_record_is_not_found(gw: LiveGateway, sb_hash: str):
 
 
 @live
-@needs_g3
 def test_all_five_milestones_in_order(gw: LiveGateway, sb_hash: str):
     steps = [
         (Milestone.DOCS_ACKNOWLEDGED, None),
@@ -144,14 +134,25 @@ def test_all_five_milestones_in_order(gw: LiveGateway, sb_hash: str):
 
 
 @live
-@needs_g3
 def test_list_records_includes_a_new_record(gw: LiveGateway, sb_hash: str):
     assert gw.create_record(sb_hash).ok
     assert sb_hash in {r.sb_hash for r in gw.list_records()}
 
 
 @live
-@needs_g3
+def test_list_records_returns_more_than_one_page(gw: LiveGateway):
+    # ISS-p1-24: Drunix's SQL state DB stops an unpaginated range scan after 10 rows
+    # (statesqldb.go GetStateRangeScanIterator), so ListRecords must page. 12 fresh records
+    # plus whatever is already on the ledger is always more than 10.
+    created = {synthetic_hash(f"page-{i}") for i in range(12)}
+    for h in created:
+        assert gw.create_record(h).ok
+    listed = [r.sb_hash for r in gw.list_records()]
+    assert created <= set(listed), f"missing {len(created - set(listed))} of 12; listed {len(listed)}"
+    assert listed == sorted(listed) and len(listed) == len(set(listed))
+
+
+@live
 def test_no_raw_identifiers_on_the_ledger(gw: LiveGateway):
     # E9: the backend's hashing (s14.domain.hashing) turns known raw numbers into salted
     # hashes; only those reach the ledger. Raw values are synthetic and fresh per run.
@@ -197,7 +198,6 @@ def test_no_raw_identifiers_on_the_ledger(gw: LiveGateway):
 
 
 @live
-@needs_g3
 def test_rejects_malformed_submission_validation(gw: LiveGateway, sb_hash: str):
     assert gw.create_record(sb_hash).ok
     no_reference = {"sb_hash": sb_hash, "milestone": Milestone.PAYMENT_RECEIVED, "occurred_on": str(date.today())}
@@ -206,7 +206,6 @@ def test_rejects_malformed_submission_validation(gw: LiveGateway, sb_hash: str):
 
 
 @live
-@needs_g3
 def test_rejects_milestone_on_unknown_record_not_found(gw: LiveGateway, sb_hash: str):
     # [I] RecordMilestone on a missing record should fail NOT_FOUND, like GetRecord.
     result = gw.record_milestone(submission(sb_hash, Milestone.PAYMENT_RECEIVED), OrgRole.AD_BANK)
@@ -214,14 +213,12 @@ def test_rejects_milestone_on_unknown_record_not_found(gw: LiveGateway, sb_hash:
 
 
 @live
-@needs_g3
 def test_rejects_second_create_already_exists(gw: LiveGateway, sb_hash: str):
     assert gw.create_record(sb_hash).ok
     assert_rejected(gw.create_record(sb_hash), ErrorCode.ALREADY_EXISTS)
 
 
 @live
-@needs_g3
 def test_rejects_payment_from_exporters_body_wrong_role(gw: LiveGateway, sb_hash: str):
     assert gw.create_record(sb_hash).ok
     result = gw.record_milestone(submission(sb_hash, Milestone.PAYMENT_RECEIVED), OrgRole.EXPORTERS_BODY)
@@ -236,7 +233,6 @@ def test_rejects_other_bank_wrong_bank(gw: LiveGateway, sb_hash: str):
 
 
 @live
-@needs_g3
 def test_rejects_ebrc_before_payment_precondition_failed(gw: LiveGateway, sb_hash: str):
     assert gw.create_record(sb_hash).ok
     result = gw.record_milestone(submission(sb_hash, Milestone.EBRC_SELF_CERTIFIED), OrgRole.EXPORTERS_BODY)
@@ -245,7 +241,6 @@ def test_rejects_ebrc_before_payment_precondition_failed(gw: LiveGateway, sb_has
 
 
 @live
-@needs_g3
 def test_rejects_second_payment_duplicate_milestone(gw: LiveGateway, sb_hash: str):
     assert gw.create_record(sb_hash).ok
     write(gw, sb_hash, Milestone.PAYMENT_RECEIVED)
