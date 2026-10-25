@@ -26,11 +26,13 @@ export const MILESTONE_RECORDED_EVENT = "MilestoneRecorded";
  * Page size for ListRecords' range query (ISS-p2-10). Drunix's SQL state DB caps a range scan
  * without pagination at 10 rows: npci/drunix@8090e0c, core/ledger/kvledger/txmgmt/statedb/
  * statesqldb/statesqldb.go:221-223. Its bookmark for the next page also looks broken there
- * (SqlScanner.GetBookmarkAndClose, same file:492) [I], so one page may be all a call returns:
- * keep this well above the number of records. Rows are read one by one, so a large page costs
- * nothing when there are few records.
+ * (SqlScanner.GetBookmarkAndClose, same file:492) [I], so one page may be all a call can read:
+ * keep this well above the number of records. A full page without a usable bookmark is an error.
  */
 export const LIST_PAGE_SIZE = 1000;
+
+/** Most pages ListRecords reads before it gives up with INTERNAL, so a call cannot loop for ever. */
+export const MAX_LIST_PAGES = 100;
 
 /**
  * The transaction timestamp as ISO 8601 UTC with "Z" (ISS-p2-2). fabric-shim takes it from the
@@ -131,20 +133,24 @@ export class ReceiptBook extends Contract {
 
   /**
    * ListRecords() -> ShippingBillRecord[] JSON: every record, in key (sb_hash) order, from a paged
-   * range query over all keys (ISS-p2-10). Only keys that are sb_hashes are records; anything else
-   * is skipped. Pages stop at an empty or repeated bookmark, or a short page. Keys seen twice are
-   * kept once, and the result is sorted here: Drunix's SQL scan has no ORDER BY [I].
+   * range query over all keys (ISS-p2-10), or INTERNAL if it cannot be sure it has every record.
+   * Only keys that are sb_hashes are records; anything else is skipped. A short page ends the list.
+   * A full page with no bookmark, a repeated one or no metadata may hide more rows, so it is an
+   * error, never a partial list; so are more than MAX_LIST_PAGES pages. Keys seen twice are kept
+   * once, and the result is sorted here: Drunix's SQL scan has no ORDER BY [I].
    */
   @Transaction(false)
   public async ListRecords(ctx: Context): Promise<string> {
     const records = new Map<string, ShippingBillRecord>();
     const bookmarks = new Set<string>();
     let bookmark = "";
-    for (;;) {
+    for (let page = 1; ; page++) {
       const { iterator, metadata } = await ctx.stub.getStateByRangeWithPagination("", "", LIST_PAGE_SIZE, bookmark);
+      let rows = 0;
       try {
         for (;;) {
           const res = await iterator.next();
+          if (res.value) rows++;
           if (res.value && HASH_PATTERN.test(res.value.key)) {
             records.set(res.value.key, JSON.parse(Buffer.from(res.value.value).toString("utf8")) as ShippingBillRecord);
           }
@@ -153,8 +159,14 @@ export class ReceiptBook extends Contract {
       } finally {
         await iterator.close();
       }
+      if ((metadata?.fetchedRecordsCount ?? rows) < LIST_PAGE_SIZE) break;
       const next = metadata?.bookmark ?? "";
-      if (!next || (metadata.fetchedRecordsCount ?? 0) < LIST_PAGE_SIZE || bookmarks.has(next)) break;
+      if (!next || bookmarks.has(next)) {
+        throw new RuleError("INTERNAL", `ListRecords: page ${page} is full but the state DB gave no new bookmark; refusing a partial list`);
+      }
+      if (page >= MAX_LIST_PAGES) {
+        throw new RuleError("INTERNAL", `ListRecords: more than ${MAX_LIST_PAGES} pages of ${LIST_PAGE_SIZE}; refusing a partial list`);
+      }
       bookmarks.add(next);
       bookmark = next;
     }

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Context } from "fabric-contract-api";
-import { ledgerTime, LIST_PAGE_SIZE, MILESTONE_RECORDED_EVENT, ReceiptBook } from "../src/receiptBook";
+import { ledgerTime, LIST_PAGE_SIZE, MAX_LIST_PAGES, MILESTONE_RECORDED_EVENT, ReceiptBook } from "../src/receiptBook";
 import { RuleError } from "../src/rules";
 import {
   MilestoneEvent, MilestoneSubmission, PRECONDITIONS, REFERENCE_REQUIRED, REPEATABLE, ShippingBillRecord, WRITER_ROLE,
@@ -18,12 +18,16 @@ const TX_ISO = "2026-11-01T09:00:00.123Z";
 
 /**
  * How the fake state DB answers a paged range query. Defaults behave like fabric-shim over LevelDB:
- * keys in order, bookmark = the first key not yet returned, or "" at the end. `order` and `bookmark`
- * let a test act like Drunix's SQL state DB (no ORDER BY, unreliable bookmark; ISS-p2-10).
+ * keys in order, bookmark = the first key not yet returned, or "" at the end. The options let a test
+ * act like a state DB that misbehaves, e.g. Drunix's SQL one (no ORDER BY, unreliable bookmark;
+ * ISS-p2-10): reorder rows, replace the bookmark (`call` counts from 1), ignore the bookmark and
+ * restart from startKey, or leave out the metadata.
  */
 interface RangeOpts {
   order?: (keys: string[]) => string[];
-  bookmark?: (next: string) => string;
+  bookmark?: (next: string, call: number) => string;
+  restart?: boolean;
+  noMetadata?: boolean;
 }
 
 /** A fake ledger shared by several transactions, like one channel's world state. */
@@ -48,7 +52,7 @@ function ledger(opts: RangeOpts = {}) {
         // per key, then {done: true}. A non-empty bookmark replaces startKey, as in the peer's handler.
         getStateByRangeWithPagination: async (start: string, end: string, pageSize: number, bookmark = "") => {
           ranges.push({ start, pageSize, bookmark });
-          const from = bookmark || start;
+          const from = (!opts.restart && bookmark) || start;
           const all = [...state.keys()].filter((k) => k >= from && (end === "" || k < end)).sort();
           const keys = (opts.order ?? ((k) => k))(all.slice(0, pageSize));
           const next = all[pageSize] ?? "";
@@ -60,7 +64,9 @@ function ledger(opts: RangeOpts = {}) {
                 : { done: true }),
               close: async () => { closed++; },
             },
-            metadata: { fetchedRecordsCount: keys.length, bookmark: (opts.bookmark ?? ((b) => b))(next) },
+            metadata: opts.noMetadata
+              ? undefined
+              : { fetchedRecordsCount: keys.length, bookmark: (opts.bookmark ?? ((b) => b))(next, ranges.length) },
           };
         },
       },
@@ -316,20 +322,43 @@ describe("ListRecords", () => {
     ]);
     expect(l.closed()).toBe(3);
   });
-  it("stops when a full page comes back with the same bookmark again, without duplicates", async () => {
-    const l = ledger({ bookmark: () => "0".repeat(64) });
-    const hashes = many(l, 3 * LIST_PAGE_SIZE);
+  it("stops at a short page that ends exactly where the bookmark pointed", async () => {
+    const l = ledger();
+    many(l, LIST_PAGE_SIZE + 1);
     const list: ShippingBillRecord[] = JSON.parse(await cc.ListRecords(l.ctx("Org1MSP")));
+    expect(list).toHaveLength(LIST_PAGE_SIZE + 1);
+    expect(l.ranges).toHaveLength(2);
+  });
+  it("throws INTERNAL, not a partial list, when a full page repeats a bookmark", async () => {
+    const l = ledger({ bookmark: () => "0".repeat(64) });
+    many(l, 3 * LIST_PAGE_SIZE);
+    expect(await code(cc.ListRecords(l.ctx("Org1MSP")))).toBe("INTERNAL");
     expect(l.ranges.map((r) => r.bookmark)).toEqual(["", "0".repeat(64)]);
-    expect(list.map((r) => r.sb_hash)).toEqual(hashes.slice(0, LIST_PAGE_SIZE));
     expect(l.closed()).toBe(2);
   });
-  it("stops after one page when the bookmark is empty, as Drunix's SQL state DB may return [I]", async () => {
+  it("throws INTERNAL when a full page has an empty bookmark, as Drunix's SQL state DB may give [I]", async () => {
     const l = ledger({ bookmark: () => "" });
-    const hashes = many(l, LIST_PAGE_SIZE + 1);
-    const list: ShippingBillRecord[] = JSON.parse(await cc.ListRecords(l.ctx("Org1MSP")));
+    many(l, LIST_PAGE_SIZE + 1);
+    expect(await code(cc.ListRecords(l.ctx("Org1MSP")))).toBe("INTERNAL");
     expect(l.ranges).toHaveLength(1);
-    expect(list.map((r) => r.sb_hash)).toEqual(hashes.slice(0, LIST_PAGE_SIZE));
+  });
+  it("throws INTERNAL when a full page has no metadata", async () => {
+    const l = ledger({ noMetadata: true });
+    many(l, LIST_PAGE_SIZE);
+    expect(await code(cc.ListRecords(l.ctx("Org1MSP")))).toBe("INTERNAL");
+    expect(l.ranges).toHaveLength(1);
+  });
+  it("returns a short page without metadata in full", async () => {
+    const l = ledger({ noMetadata: true });
+    const hashes = many(l, 30);
+    expect(JSON.parse(await cc.ListRecords(l.ctx("Org1MSP"))).map((r: ShippingBillRecord) => r.sb_hash)).toEqual(hashes);
+  });
+  it(`throws INTERNAL after ${MAX_LIST_PAGES} full pages of fresh bookmarks over the same rows`, async () => {
+    const l = ledger({ restart: true, bookmark: (_next, call) => `fresh-${call}` });
+    many(l, LIST_PAGE_SIZE);
+    expect(await code(cc.ListRecords(l.ctx("Org1MSP")))).toBe("INTERNAL");
+    expect(l.ranges).toHaveLength(MAX_LIST_PAGES);
+    expect(l.closed()).toBe(MAX_LIST_PAGES);
   });
   it("sorts by sb_hash when the state DB returns rows out of order", async () => {
     const l = ledger({ order: (k) => [...k].reverse() });
