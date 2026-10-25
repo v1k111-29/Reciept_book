@@ -20,6 +20,9 @@ from s14.contracts import (
     ErrorCode,
     GatewayRequest,
     GatewayResult,
+    Milestone,
+    MilestoneEvent,
+    OrgRole,
     ShippingBillRecord,
 )
 from s14.domain.hashing import shipping_bill_hash
@@ -135,7 +138,9 @@ def test_outcome_unknown_is_never_resubmitted(path, body):
     assert [call.function for call in gateway.calls][1:] == [ChaincodeFunction.GET_RECORD]
 
 
-def test_outcome_unknown_after_mvcc_conflict_stops_retrying_and_reads_back():
+def test_create_outcome_unknown_after_mvcc_conflict_is_not_trusted_to_read_back():
+    # The record exists, but a concurrent create may have won the MVCC race, and a record
+    # carries no creating tx_id, so existence does not prove that tx-2 committed.
     record = ShippingBillRecord(
         sb_hash=shipping_bill_hash("SB-42", "INMAA1", date(2026, 10, 20), "test-salt"),
         bank_msp="Org1MSP",
@@ -157,14 +162,54 @@ def test_outcome_unknown_after_mvcc_conflict_stops_retrying_and_reads_back():
 
     response = TestClient(app).post(CREATE[0], json=CREATE[1])
 
-    assert response.status_code == 200
-    assert response.json() == {"sb_hash": record.sb_hash, "tx_id": "tx-2"}
+    assert response.status_code == 504
+    assert response.json()["code"] == "OUTCOME_UNKNOWN"
     assert gateway.submits == 2
     assert [call.function for call in gateway.calls] == [
         ChaincodeFunction.CREATE_RECORD,
         ChaincodeFunction.CREATE_RECORD,
-        ChaincodeFunction.GET_RECORD,
     ]
+
+
+def test_milestone_outcome_unknown_after_mvcc_conflict_reads_back_by_tx_id():
+    sb_hash = "a" * 64
+    event = MilestoneEvent(
+        sb_hash=sb_hash,
+        milestone=Milestone.PAYMENT_RECEIVED,
+        occurred_on=date(2026, 10, 20),
+        reference_hash="b" * 64,
+        tx_id="tx-2",
+        ledger_time=datetime(2026, 10, 20, 9, tzinfo=UTC),
+        submitter_msp="Org1MSP",
+        submitter_role=OrgRole.AD_BANK,
+    )
+    record = ShippingBillRecord(
+        sb_hash=sb_hash,
+        bank_msp="Org1MSP",
+        created_ledger_time=datetime(2026, 10, 20, tzinfo=UTC),
+        events=(event,),
+    )
+
+    class ReadBackGateway(ScriptedGateway):
+        def evaluate(self, request: GatewayRequest) -> GatewayResult:
+            self.calls.append(request)
+            return GatewayResult(ok=True, payload=record.model_dump(mode="json"))
+
+    gateway = _use(
+        ReadBackGateway(
+            _failure(ErrorCode.MVCC_CONFLICT, tx_id="tx-1"),
+            _failure(ErrorCode.OUTCOME_UNKNOWN, tx_id="tx-2"),
+        )
+    )
+
+    response = TestClient(app).post(
+        f"/records/{sb_hash}/milestones",
+        json={"milestone": "PAYMENT_RECEIVED", "occurred_on": "2026-10-20", "acting_as": "AD_BANK", "reference": "IRM-1"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"sb_hash": sb_hash, "tx_id": "tx-2"}
+    assert gateway.submits == 2
 
 
 @WRITE_ROUTES

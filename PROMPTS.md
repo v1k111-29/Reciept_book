@@ -54,7 +54,7 @@ branch is merged.
 
 After merge window 9 (25 Oct 2026, develop 22eb128) the develop counts are the branch counts above:
 Python **91 passed, 14 skipped**; chaincode **70**; gateway **73**; frontend **19**. Branch
-`p1/g4-hardening` then adds the MVCC retry tests and two E8 tests: Python **121 passed, 14
+`p1/g4-hardening` then adds the MVCC retry tests and two E8 tests: Python **122 passed, 14
 skipped**; chaincode **70 passed**; gateway **73 passed**; frontend **21 passed**. Typecheck in
 chaincode and gateway now also checks `test/`.
 

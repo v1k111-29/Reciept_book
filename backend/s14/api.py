@@ -105,17 +105,18 @@ def _list_records(gateway: Gateway) -> list[ShippingBillRecord] | JSONResponse:
         )
 
 
-def _submit(gateway: Gateway, request: GatewayRequest) -> GatewayResult:
+def _submit(gateway: Gateway, request: GatewayRequest) -> tuple[GatewayResult, int]:
     """Submit a write, retrying only errors in RETRYABLE_ERRORS, at most MVCC_MAX_ATTEMPTS times.
 
     Any other result, OUTCOME_UNKNOWN included, is returned after the first attempt.
+    Returns the last result and the number of attempts made.
     """
     attempt = 1
     while True:
         result = gateway.submit(request)
         retryable = not result.ok and result.error is not None and result.error.code in RETRYABLE_ERRORS
         if not retryable or attempt >= MVCC_MAX_ATTEMPTS:
-            return result
+            return result, attempt
         attempt += 1
         if MVCC_RETRY_BACKOFF_SECONDS > 0:
             time.sleep(MVCC_RETRY_BACKOFF_SECONDS)
@@ -176,7 +177,7 @@ def create_record(
         return salt
 
     sb_hash = shipping_bill_hash(request.sb_number, request.port_code, request.sb_date, salt)
-    result = _submit(
+    result, attempts = _submit(
         gateway,
         GatewayRequest(
             function=ChaincodeFunction.CREATE_RECORD,
@@ -189,6 +190,9 @@ def create_record(
             result.error is not None
             and result.error.code is ErrorCode.OUTCOME_UNKNOWN
             and result.tx_id is not None
+            # A record carries no creating tx_id, so its existence proves this create only when
+            # no earlier attempt hit MVCC_CONFLICT (a concurrent create may have won that race).
+            and attempts == 1
             and _unknown_write_committed(gateway, sb_hash, result)
         ):
             return TxReceipt(sb_hash=sb_hash, tx_id=result.tx_id)
@@ -225,7 +229,7 @@ def record_milestone(
         customs_status=request.customs_status,
     )
 
-    result = _submit(
+    result, _attempts = _submit(
         gateway,
         GatewayRequest(
             function=ChaincodeFunction.RECORD_MILESTONE,
