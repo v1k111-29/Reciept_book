@@ -39,12 +39,17 @@ A non-2xx reply throws `ApiError`. Its `code` is the contract `ErrorCode` from t
 body is not JSON the code is `INTERNAL`. If `fetch` itself fails the code is `NETWORK` and
 the status is 0. The views show errors as `CODE: message`.
 
-## Dev proxy
+## API proxy
 
 The backend routes have no `/api` prefix. `vite.config.ts` proxies `/api` to
 `http://localhost:8000` and strips the prefix, so start the backend on port 8000 first. The
-proxy exists only in the Vite dev server. A built `dist/` served by a plain file server has
-no proxy and would need the same rewrite (open item ISS-p5-1 in `docs/logs/p5.md`).
+same proxy is set for both `server` and `preview`, so these two both reach the backend:
+
+- `npm run dev` (Vite dev server)
+- `npm run build && npx vite preview` (serves the production build in `dist/`)
+
+Any other static host serving `dist/` has no proxy. It needs the same rewrite: forward
+`/api/<path>` to the backend as `/<path>` (ISS-p5-1 in `docs/logs/p5.md`).
 
 ## Commands
 
@@ -62,7 +67,8 @@ npm run build        # tsc --noEmit, then vite build into dist/
 ## Tests
 
 In `test/`. `App.test.tsx` renders the views against a fake `Api`. It checks desk
-milestones per role, a milestone submit, the error code on a rejected write, timeline
+milestones per role (by hand, and derived from `WRITER_ROLE` so a contract change is caught),
+a milestone submit, the error code on a rejected write, timeline
 order, plain-word causes and the "Not enough data" case. `api.spec.test.ts` mocks `fetch` and
 checks paths, methods and `ApiError`. `parity.test.ts` checks the TypeScript contracts
 against the schema.

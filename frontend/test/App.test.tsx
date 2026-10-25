@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { App, causeInWords } from "../src/App";
+import { App, causeInWords, formatMilestone } from "../src/App";
 import { ApiError, type Api } from "../src/api";
-import { CauseBucket } from "../src/generated/contracts";
+import { CauseBucket, Milestone, OrgRole, WRITER_ROLE } from "../src/generated/contracts";
 import { metricsFixture, timelineFixture } from "./fixtures";
 
 function fakeApi(over: Partial<Api> = {}): Api {
@@ -36,6 +36,28 @@ test("renders exporter-writable milestones on the exporters' desk", () => {
   expect(screen.getByRole("button", { name: "EBRC SELF CERTIFIED" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "CUSTOMS STATUS OBSERVED" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "EDPMS MARKED OFF" })).not.toBeInTheDocument();
+});
+
+function expectDeskMatchesWriterRole(role: OrgRole) {
+  const all = Object.values(Milestone);
+  const mine = all.filter((m) => WRITER_ROLE[m] === role);
+  expect(mine.length).toBeGreaterThan(0);
+  for (const m of all) {
+    const button = screen.queryByRole("button", { name: formatMilestone(m) });
+    if (WRITER_ROLE[m] === role) expect(button).toBeInTheDocument();
+    else expect(button).not.toBeInTheDocument();
+  }
+}
+
+test("bank desk shows exactly the milestones whose WRITER_ROLE is AD_BANK", () => {
+  render(<App api={fakeApi()} />);
+  expectDeskMatchesWriterRole(OrgRole.AD_BANK);
+});
+
+test("exporters' desk shows exactly the milestones whose WRITER_ROLE is EXPORTERS_BODY", () => {
+  render(<App api={fakeApi()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Exporters' desk" }));
+  expectDeskMatchesWriterRole(OrgRole.EXPORTERS_BODY);
 });
 
 test("bank desk submits a milestone through the api", async () => {
