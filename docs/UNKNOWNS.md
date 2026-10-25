@@ -10,9 +10,9 @@ Rule: nobody codes as if an unknown were known. Close an item by writing the evi
 | U-03 | Does Drunix `network.sh deployCC` accept `-ccep` (endorsement policy) and `-ccl typescript` | E3 and deployment | p3 | G1 | read `network.sh` / run it; log | CLOSED 18 Oct 2026 (p3; TypeScript needs the ISS-p3-8 workaround; evidence below) |
 | U-04 | Can the state DB be something other than YugabyteDB (issue #8: non-atomic SQL + Redis writes) | Reliability of commits | p3 | G1 | try the `-s` options; log | SETTLED BY DECISION 18 Oct 2026 (D-23: keep YugabyteDB); other state DBs untested |
 | U-05 | Does a custom channel name (`receiptbook`) work, or only `mychannel` | Scripts and config | p3 | G1 | `network/up.sh`; log | CLOSED 18 Oct 2026 (p3; evidence below) |
-| U-06 | Can a third org be added to the test network (Fabric's `addOrg3` equivalent) | N2, N3 | p3 | after G3 | inspect the test-network folder | OPEN |
+| U-06 | Can a third org be added to the test network (Fabric's `addOrg3` equivalent) | N2, N3 | p3 | after G3 | inspect the test-network folder | OPEN (paper half answered 25 Oct 2026: no add-org script in npci/drunix@8090e0c; see below) |
 | U-07 | Does TypeScript chaincode build and run on Drunix in practice (only Go samples were seen in the repo) | D-02 | p2 + p3 | G1 | deploy the stub chaincode; log | CLOSED 20 Oct 2026 (p2; evidence below) |
-| U-08 | Private data collections on Drunix: the docs mention a KeyDB transient store, but "private data collections" was not on the pages read; the test network has an `asset-transfer-private-data` example | N1 | p2 | after G3 | deploy the sample with `-cccg`; log | OPEN |
+| U-08 | Private data collections on Drunix: the docs mention a KeyDB transient store, but "private data collections" was not on the pages read; the test network has an `asset-transfer-private-data` example | N1 | p2 | after G3 | deploy the sample with `-cccg`; log | OPEN (paper half answered 25 Oct 2026: sample and `-cccg` exist in npci/drunix@8090e0c; see below) |
 | U-09 | GitHub Actions versions (`actions/checkout@v4`, `actions/setup-node@v4`, `astral-sh/setup-uv@v5`) and which push restrictions our repo plan offers | CI and branch protection | p1 | G0 | first CI run; settings screen | CLOSED 24 Oct 2026 (p1; evidence below) |
 | U-10 | Which team member is the lead, and is the lead p1 | D-10 | user | G0 | user confirms | OPEN (note 24 Oct 2026: lead has acted as p1 since D-14; the user's formal confirmation is still pending) |
 | U-11 | Which machine(s) can host Drunix (Linux/WSL2, Docker, RAM for YugabyteDB) | G1 feasibility | p3 + all | G0 | the G0 reports | CLOSED 18 Oct 2026 (p3's MacBook is the host machine; evidence below) |
@@ -215,3 +215,60 @@ the `peer` CLI endorsed by both lite peers.
   say "submitted at", not "happened at".
 - **Residual [I]:** whether Drunix rejects a proposal whose client clock is far off (a clock-skew
   check) was not tested.
+
+### U-06 (p1, 25 Oct 2026, source read): still OPEN, paper half answered
+
+Source: public npci/drunix at commit 8090e0c (`main`, 17 Oct 2026, the commit our network runs,
+`docs/logs/p3.md`). Full git tree read through the GitHub API; files read from
+raw.githubusercontent.com. Nothing was run.
+
+- **No add-org script.** No path under `drunix-network/` contains `addOrg` or `org3`.
+  `drunix-network/` holds only `asset-transfer-basic`, `asset-transfer-private-data`, `config` and
+  `test-network` (https://github.com/npci/drunix/tree/8090e0ce58802c8a0f13d23a6abe5a2d35456cc5/drunix-network).
+- **Only leftovers of Fabric's addOrg3 remain**, as comments or dead code:
+  `test-network/scripts/envVar.sh` (a comment naming "test-network/addOrg3", and an org-3 branch
+  with its exports commented out), `scripts/setAnchorPeer.sh` and `scripts/configUpdate.sh`
+  (comments on "org3-scripts"). That addOrg3 was once present and removed is [I]; git history was
+  not searched.
+- **Org1 and Org2 are hard-coded** in `configtx/configtx.yaml` (channel profile), `createChannel.sh`
+  (joins and anchor peers), `deployCC.sh` (installs), `envVar.sh` (`setGlobals`) and `network.sh`
+  (crypto, connection profiles, `down` cleanup).
+- **One Drunix org needs five containers.** From `compose/compose-test-net.yaml` and
+  `scripts/yugabyte/compose.yaml`: a lite peer (`CORE_PEER_LITEPEER_ENABLED=true`), a committing
+  peer, a validation server (`npcioss/drunix-vscc`), a YugabyteDB container and a KeyDB container.
+- **What a third org would take [I]:** bring the network up with three orgs from the start, which
+  avoids a channel config update. That needs an org3 crypto-config, an `Org3` block in
+  configtx.yaml, five more compose services with new ports, and org-3 cases in envVar.sh,
+  createChannel.sh, setAnchorPeer.sh, deployCC.sh/ccutils.sh and network.sh. These are NPCI's
+  files, so our `network/` folder would carry a patch or overlay. Adding Org3 to a running channel
+  instead needs Fabric 2.5's config-update flow; that it works unchanged on Drunix is [I] (root
+  README: "Backwards compatible with HLF v2.5.x").
+- **Still [U], needs a live test:** whether a three-org network comes up, whether the Drunix peer
+  accepts an MSP added by config update, and whether the host has the resources (U-11).
+
+### U-08 (p1, 25 Oct 2026, source read): still OPEN, paper half answered
+
+Source: npci/drunix at commit 8090e0c, as for U-06.
+
+- **The sample exists:** `drunix-network/asset-transfer-private-data/`, Go chaincode only
+  (`chaincode-go/`, with `collections_config.json`) and Go and TypeScript gateway apps. Its README
+  also names Java and TypeScript chaincode folders, which are not in the tree
+  (https://github.com/npci/drunix/tree/8090e0ce58802c8a0f13d23a6abe5a2d35456cc5/drunix-network/asset-transfer-private-data).
+- **`-cccg` is supported:** `test-network/network.sh` reads `-cccg` into `CC_COLL_CONFIG` and
+  passes it to `scripts/deployCC.sh`, which turns it into `--collections-config`. `scripts/ccutils.sh`
+  adds it to `approveformyorg`, `checkcommitreadiness` and `commit`. `test-network/README.md`
+  lists the flag under "Common deploy flags".
+- **Design:** https://github.com/npci/drunix/blob/8090e0ce58802c8a0f13d23a6abe5a2d35456cc5/docs/drunix-arch.md ("Private Data Management", "Private Data Retrieval") says the
+  lite peer stores private data in the per-org KeyDB transient store and disseminates it to
+  eligible peers in other orgs; the committing peer reads the transient store first. The compose
+  file wires `CORE_PEER_KVSTORE_ENABLED=true` and `CORE_PEER_KVSTORE_ADDRESS=hlf_keydb_org1msp:6379`
+  on the lite peer. This corrects the row: private data is covered in `docs/drunix-arch.md`.
+- **Still [U], needs a live test:** whether private data works end to end with lite peers that run
+  with gossip state off (the sample's `assetCollection` has `requiredPeerCount: 1`), whether the
+  sample's CouchDB index folder matters on YugabyteDB, how Org2 receives Org1's private data, and
+  whether `putPrivateData` from our TypeScript chaincode works on Drunix (N1 needs that).
+- **Live test to run (after G3, per FEATURES.md):** `network.sh deployCC -c receiptbook -ccn private
+  -ccp ../asset-transfer-private-data/chaincode-go -ccl go -cccg
+  ../asset-transfer-private-data/chaincode-go/collections_config.json -ccep
+  "OR('Org1MSP.peer','Org2MSP.peer')"`. Check `querycommitted` shows the collections, then write
+  and read from each org.
