@@ -324,3 +324,15 @@ tracks. Newest last.
 - Gate status: G0 and G1 closed and tagged. G2, G3 and G4 are open; the steps to close them are in
   docs/HOST_RUNBOOK.md and need the Drunix host machine.
 - Still open on GitHub (lead to close by hand): issue #41 (met, D-30) and #44 (met, D-31).
+
+### 2026-10-26 | merge window 11 | develop before e9b08b9, after 297f5a4
+| PR | Author | Result | develop after | Suites after merge |
+|---|---|---|---|---|
+| #59 p1/g2-live-ci | p1 (+ p2, p3, p4, p5 work under the user's override) | merged 26 Oct by the lead's session, with the user's explicit approval in chat; all 6 checks green, including the live job (run 40224514667) | 297f5a4 | py 122 passed / 15 skipped, cc 78, gw 73, fe 21 |
+- `bash scripts/check_all.sh` on develop 297f5a4: "all suites green", with the counts above. ci.yml on the push to develop: success.
+- `live.yml` dispatched on develop 297f5a4, run 40278900530: **failure**.
+  - The live suite passed: 14 passed, 1 skipped.
+  - E3 passed: the one-org write gave ENDORSEMENT_POLICY_FAILURE on both cp peers, and the two-org write was VALID.
+  - The demo seed stopped at `loaded 29/30`. SYNTHETIC-SB-0018's CUSTOMS_STATUS_OBSERVED failed with "500 INTERNAL ProposalResponsePayloads do not match". The UI smoke test did not run, because the seed is strict in headless mode.
+  - ISS-p1-25: lp1.org2's log shows "read value mismatch ... initial-endorser-value=78 invoked-endorser-value=79" on that record's key. A write through Org1 two seconds earlier had committed on Org1's state but not yet on Org2's, so the two endorsements differed. Nothing reached the orderer. This is intermittent: five earlier runs (40219044536 to 40224514667) did not hit it. It is assigned to p3 as a bounded endorse retry in the gateway (no contract change).
+- **Gate status:** G2, G3 and G4 are **not declared** on 297f5a4, and no tags were made. 297f5a4 does not have a green live run, and G2's UI round-trip has no evidence on it. The gates wait for the ISS-p1-25 fix and a green `live.yml` run on the develop merge commit.

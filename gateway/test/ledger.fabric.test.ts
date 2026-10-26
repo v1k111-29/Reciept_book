@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { status as grpcStatus, type ServiceError } from "@grpc/grpc-js";
 import { CommitStatusError, EndorseError, GatewayError } from "@hyperledger/fabric-gateway";
-import { evaluateVia, FabricLedger, statusName, submitVia, toLedgerFailure } from "../src/ledger/fabric";
+import { evaluateVia, FabricLedger, isEndorseMismatch, MISMATCH_RETRY, statusName, submitVia, toLedgerFailure } from "../src/ledger/fabric";
+import { toErrorResult } from "../src/ledger/errors";
 import { LedgerError } from "../src/ledger/types";
 
 const cause = new Error("grpc") as ServiceError;
@@ -92,6 +93,74 @@ describe("submit and evaluate flow", () => {
     });
     const err = await submitVia(c, "RecordMilestone", ["{}"]).catch((e) => e);
     expect(err.failure).toEqual({ kind: "outcome_unknown", txId: "tx-9" });
+  });
+
+  describe("retry of an endorsement whose peers' results differ (ISS-p3-10)", () => {
+    const mismatch = () => endorseError(grpcStatus.ABORTED, [detail("ProposalResponsePayloads do not match")]);
+    const fast = { ...MISMATCH_RETRY, waitMs: 0 };
+    /** submitAsync that runs the given steps in turn: an Error is thrown, anything else is returned. */
+    const scripted = (...steps: unknown[]) => {
+      let calls = 0;
+      const submitAsync = async () => {
+        const step = steps[Math.min(calls++, steps.length - 1)];
+        if (step instanceof Error) throw step;
+        return step;
+      };
+      return { c: contract({ submitAsync }), calls: () => calls };
+    };
+
+    it("retries a mismatch with a new proposal and returns the second attempt's result", async () => {
+      const s = scripted(mismatch(), submitted(0));
+      await expect(submitVia(s.c, "RecordMilestone", ["{}"])).resolves.toEqual({ txId: "tx-1", result: '{"ok":1}' });
+      expect(s.calls()).toBe(2);
+    });
+
+    it("matches the peer text case-insensitively", () => {
+      expect(isEndorseMismatch(endorseError(grpcStatus.ABORTED, [detail("proposalresponsepayloads DO NOT MATCH")]))).toBe(true);
+    });
+
+    it("gives up after exactly 3 attempts and keeps today's INTERNAL result", async () => {
+      const s = scripted(mismatch());
+      const err = await submitVia(s.c, "RecordMilestone", ["{}"], fast).catch((e) => e);
+      expect(s.calls()).toBe(3);
+      expect(err.failure).toEqual({ kind: "endorse", messages: ["ProposalResponsePayloads do not match"], txId: "tx-e" });
+      expect(toErrorResult(err.failure).result.error).toEqual({ code: "INTERNAL", message: "ProposalResponsePayloads do not match" });
+    });
+
+    it("stops retrying once the time budget is spent", async () => {
+      const s = scripted(mismatch());
+      await submitVia(s.c, "RecordMilestone", ["{}"], { ...fast, budgetMs: -1 }).catch(() => undefined);
+      expect(s.calls()).toBe(1);
+    });
+
+    it.each([
+      ["another endorse failure", endorseError(grpcStatus.ABORTED, [detail("chaincode response 500, WRONG_ROLE: x")])],
+      ["an unreachable endorser", endorseError(grpcStatus.UNAVAILABLE, [])],
+      ["a GatewayError with the mismatch text", gatewayError(grpcStatus.ABORTED, [detail("ProposalResponsePayloads do not match")])],
+      ["a SubmitError (may be ordered)", submitError(grpcStatus.DEADLINE_EXCEEDED)],
+    ])("does not retry %s", async (_name, error) => {
+      const s = scripted(error, submitted(0));
+      await expect(submitVia(s.c, "RecordMilestone", ["{}"], fast)).rejects.toBeInstanceOf(LedgerError);
+      expect(s.calls()).toBe(1);
+    });
+
+    it("does not retry a commit failure", async () => {
+      const s = scripted(submitted(11), submitted(0));
+      const err = await submitVia(s.c, "RecordMilestone", ["{}"], fast).catch((e) => e);
+      expect([err.failure.kind, s.calls()]).toEqual(["commit", 1]);
+    });
+
+    it("does not retry an unknown commit status (OUTCOME_UNKNOWN)", async () => {
+      const unknown = {
+        ...submitted(0),
+        getStatus: async () => {
+          throw new CommitStatusError({ code: 4, details: [], cause, transactionId: "tx-9" });
+        },
+      };
+      const s = scripted(unknown, submitted(0));
+      const err = await submitVia(s.c, "RecordMilestone", ["{}"], fast).catch((e) => e);
+      expect([err.failure.kind, s.calls()]).toEqual(["outcome_unknown", 1]);
+    });
   });
 
   it("evaluate decodes the result and converts Fabric errors", async () => {

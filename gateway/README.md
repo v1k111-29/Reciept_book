@@ -18,7 +18,9 @@ are for Go, Node and Java, and we know of no maintained Python one [I].
 
 - No business rules. Who may write what, and in which order, is decided by the chaincode
   (`chaincode/src/rules.ts`). The gateway only checks the request shape.
-- No hashing, no storage, no retries. The backend decides whether to retry (`RETRYABLE_ERRORS`).
+- No hashing, no storage. The backend decides whether to retry (`RETRYABLE_ERRORS`). The one
+  retry in the gateway is an endorsement whose peers' results differ, before anything is ordered
+  (`MISMATCH_RETRY`, see below).
 - It does not hold keys in git. Credentials are file paths in environment variables.
 
 ## Files
@@ -66,6 +68,7 @@ Failed responses carry `GatewayResult` with `ok: false` and the HTTP status from
 |---|---|---|
 | Chaincode error, read from `chaincode response 500, <ErrorCode>: ...` in the peers' details | that code | per `ERROR_HTTP_STATUS` |
 | Peers report different codes | `ENDORSEMENT_FAILED` | 502 |
+| Peers' results differ ("ProposalResponsePayloads do not match") on every attempt | `INTERNAL` | 500 |
 | Unknown or no code in the details | `INTERNAL` | 500 |
 | Commit code `MVCC_READ_CONFLICT` | `MVCC_CONFLICT` (retryable) | 409 |
 | Commit code `ENDORSEMENT_POLICY_FAILURE` | `ENDORSEMENT_FAILED` | 502 |
@@ -97,6 +100,14 @@ The gRPC deadlines (`DEADLINES_MS` in `src/ledger/fabric.ts`) are chosen budgets
 measurements. Endorse plus submit plus commit status stay under the 10 s timeout of p4's
 `HttpGateway`, so a slow commit comes back as `OUTCOME_UNKNOWN`, not `LEDGER_UNAVAILABLE`
 (REQ-p3-6). They were set on the emulated test network [I]; retune on your host.
+
+`MISMATCH_RETRY` (same file, ISS-p3-10 in docs/logs/p3.md): when the endorsing peers read
+different versions of a key (a write right after another one on the same key, committed on one
+org's peer but not yet on the other's), the peer gateway answers "ProposalResponsePayloads do not
+match" and nothing is ordered. The gateway then sends a new proposal (new tx id), up to 3 attempts
+in total, 300 ms apart, and starts a new attempt only while at most 0.9 s has been used, so the
+worst case stays at 9.9 s. Nothing else is retried: not other endorse failures, nothing after the
+submit to the orderer, no commit failure, never `OUTCOME_UNKNOWN`.
 
 ## Build, typecheck, test
 

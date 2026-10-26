@@ -16,7 +16,8 @@ import { LedgerError, type Ledger, type LedgerFailure } from "./types.js";
 /**
  * gRPC deadlines in ms. The submit path (endorse + submit + commit status = 9 s) stays under the 10 s
  * timeout of p4's HttpGateway, so a slow commit reaches the backend as OUTCOME_UNKNOWN, not as a
- * client-side LEDGER_UNAVAILABLE (REQ-p3-6). [I] tuned on the emulated test network.
+ * client-side LEDGER_UNAVAILABLE (REQ-p3-6). MISMATCH_RETRY below adds at most 0.9 s (9.9 s worst case).
+ * [I] tuned on the emulated test network.
  */
 export const DEADLINES_MS = { evaluate: 5000, endorse: 3000, submit: 2000, commitStatus: 4000 } as const;
 
@@ -71,19 +72,60 @@ function rethrow(err: unknown): never {
 
 type ContractLike = Pick<Contract, "submitAsync" | "evaluateTransaction">;
 
+/**
+ * Retry of an endorsement whose peers returned different results (ISS-p3-10). Seen live on Drunix (run
+ * 40278900530): a write right after another on the same key, through the other org, is endorsed while the
+ * first write has committed on one org's peer but not yet on the other's, so the two read different
+ * versions and the peer gateway answers "ProposalResponsePayloads do not match". Nothing was sent to the
+ * orderer, so a fresh proposal (new tx id) cannot record twice. Any other failure is never retried here.
+ *
+ * Time bound: the next attempt starts only while failed attempts plus waits have used at most budgetMs, so
+ * the worst case is budgetMs + one full attempt (DEADLINES_MS endorse + submit + commit status = 9 s)
+ * = 9.9 s, still under p4's 10 s timeout. [I] a mismatch fails in milliseconds, so the 2 waits fit.
+ */
+export const MISMATCH_RETRY = { attempts: 3, waitMs: 300, budgetMs: 900 } as const;
+export type MismatchRetry = { readonly attempts: number; readonly waitMs: number; readonly budgetMs: number };
+
+const PAYLOADS_DO_NOT_MATCH = /ProposalResponsePayloads do not match/i;
+
+/** True for an endorse-stage failure whose peers' results differ (never for anything ordered). */
+export function isEndorseMismatch(err: unknown): boolean {
+  if ((err as FabricErrorLike | null)?.name !== "EndorseError") return false;
+  const failure = toLedgerFailure(err);
+  return failure?.kind === "endorse" && failure.messages.some((m) => PAYLOADS_DO_NOT_MATCH.test(m));
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /** Endorse, order, then wait for the commit status, so an invalidated commit and an unknown one differ. */
-export async function submitVia(contract: ContractLike, fn: string, args: string[]): Promise<{ txId: string; result: string }> {
-  try {
-    const submitted = await contract.submitAsync(fn, { arguments: args });
-    const result = utf8.decode(submitted.getResult());
-    const status = await submitted.getStatus();
-    if (!status.successful) {
-      throw new LedgerError({ kind: "commit", commitCode: statusName(status.code), txId: status.transactionId });
+export async function submitVia(
+  contract: ContractLike,
+  fn: string,
+  args: string[],
+  retry: MismatchRetry = MISMATCH_RETRY,
+): Promise<{ txId: string; result: string }> {
+  const started = Date.now();
+  for (let attempt = 1; ; attempt++) {
+    try {
+      // submitAsync builds a new proposal, so each attempt has its own tx id.
+      const submitted = await contract.submitAsync(fn, { arguments: args });
+      const result = utf8.decode(submitted.getResult());
+      const status = await submitted.getStatus();
+      if (!status.successful) {
+        throw new LedgerError({ kind: "commit", commitCode: statusName(status.code), txId: status.transactionId });
+      }
+      return { txId: status.transactionId, result };
+    } catch (err) {
+      if (err instanceof LedgerError) throw err;
+      const inBudget = Date.now() - started + retry.waitMs <= retry.budgetMs;
+      if (attempt < retry.attempts && inBudget && isEndorseMismatch(err)) {
+        const txId = (err as FabricErrorLike).transactionId;
+        console.warn(`gateway: ${fn} tx ${txId} endorsement results differ (attempt ${attempt}/${retry.attempts}); retrying`);
+        await sleep(retry.waitMs);
+        continue;
+      }
+      return rethrow(err);
     }
-    return { txId: status.transactionId, result };
-  } catch (err) {
-    if (err instanceof LedgerError) throw err;
-    return rethrow(err);
   }
 }
 
