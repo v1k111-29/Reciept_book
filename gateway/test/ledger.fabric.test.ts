@@ -1,8 +1,17 @@
 /** Fabric error conversion and submit flow of src/ledger/fabric.ts, without a network. OWNER: P3. */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { status as grpcStatus, type ServiceError } from "@grpc/grpc-js";
 import { CommitStatusError, EndorseError, GatewayError } from "@hyperledger/fabric-gateway";
-import { evaluateVia, FabricLedger, isEndorseMismatch, MISMATCH_RETRY, statusName, submitVia, toLedgerFailure } from "../src/ledger/fabric";
+import {
+  evaluateVia,
+  FabricLedger,
+  isEndorseMismatch,
+  MISMATCH_RETRY,
+  otherOrgRoles,
+  statusName,
+  submitVia,
+  toLedgerFailure,
+} from "../src/ledger/fabric";
 import { toErrorResult } from "../src/ledger/errors";
 import { LedgerError } from "../src/ledger/types";
 
@@ -59,9 +68,12 @@ describe("toLedgerFailure", () => {
   });
 });
 
+const signedRequest = new Uint8Array([1, 2, 3]);
+
 describe("submit and evaluate flow", () => {
   const submitted = (code: number, successful = code === 0) => ({
     getResult: () => new TextEncoder().encode('{"ok":1}'),
+    getBytes: () => signedRequest,
     getStatus: async () => ({ code, successful, transactionId: "tx-1", blockNumber: 7n }),
   });
   const contract = (impl: Partial<Record<"submitAsync" | "evaluateTransaction", (...a: any[]) => Promise<any>>>) =>
@@ -97,7 +109,7 @@ describe("submit and evaluate flow", () => {
 
   describe("retry of an endorsement whose peers' results differ (ISS-p3-10)", () => {
     const mismatch = () => endorseError(grpcStatus.ABORTED, [detail("ProposalResponsePayloads do not match")]);
-    const fast = { ...MISMATCH_RETRY, waitMs: 0 };
+    const fast = { retry: { ...MISMATCH_RETRY, waitMs: 0 } };
     /** submitAsync that runs the given steps in turn: an Error is thrown, anything else is returned. */
     const scripted = (...steps: unknown[]) => {
       let calls = 0;
@@ -129,7 +141,7 @@ describe("submit and evaluate flow", () => {
 
     it("stops retrying once the time budget is spent", async () => {
       const s = scripted(mismatch());
-      await submitVia(s.c, "RecordMilestone", ["{}"], { ...fast, budgetMs: -1 }).catch(() => undefined);
+      await submitVia(s.c, "RecordMilestone", ["{}"], { retry: { ...fast.retry, budgetMs: -1 } }).catch(() => undefined);
       expect(s.calls()).toBe(1);
     });
 
@@ -160,6 +172,95 @@ describe("submit and evaluate flow", () => {
       const s = scripted(unknown, submitted(0));
       const err = await submitVia(s.c, "RecordMilestone", ["{}"], fast).catch((e) => e);
       expect([err.failure.kind, s.calls()]).toEqual(["outcome_unknown", 1]);
+    });
+  });
+
+  describe("wait for the other orgs' peers to commit (ISS-p3-11)", () => {
+    afterEach(() => vi.restoreAllMocks());
+    const valid = { code: 0, successful: true, transactionId: "tx-1", blockNumber: 7n };
+    /** Another org's peer whose getStatus runs `status`; records the bytes and deadline it was given. */
+    const peer = (name: string, status: (options: { deadline: number }) => Promise<unknown>) => {
+      const seen: { bytes?: Uint8Array; deadline?: number; calls: number } = { calls: 0 };
+      const org = {
+        name,
+        newCommit: (bytes: Uint8Array) => {
+          seen.bytes = bytes;
+          return {
+            getStatus: async (options?: any) => {
+              seen.calls++;
+              seen.deadline = options?.deadline;
+              return status(options) as any;
+            },
+          };
+        },
+      };
+      return { org, seen };
+    };
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    it("asks the other org's peer with the submitter's signed request and returns the result", async () => {
+      const org2 = peer("Org2MSP", async () => valid);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const c = contract({ submitAsync: async () => submitted(0) });
+      const before = Date.now();
+      await expect(submitVia(c, "CreateRecord", ["a"], { otherOrgs: [org2.org] })).resolves.toEqual({ txId: "tx-1", result: '{"ok":1}' });
+      expect([org2.seen.calls, org2.seen.bytes]).toEqual([1, signedRequest]);
+      // deadline = attempt start + endorse + submit + commit status
+      expect(org2.seen.deadline! - before).toBeGreaterThan(8900);
+      expect(org2.seen.deadline! - before).toBeLessThanOrEqual(9000 + (Date.now() - before));
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it("waits for a slow peer that commits within the budget", async () => {
+      let committed = false;
+      const org2 = peer("Org2MSP", async () => {
+        await delay(50);
+        committed = true;
+        return valid;
+      });
+      const c = contract({ submitAsync: async () => submitted(0) });
+      await submitVia(c, "RecordMilestone", ["{}"], { otherOrgs: [org2.org] });
+      expect(committed).toBe(true);
+    });
+
+    it("still returns the result, with one warning, when the other peer times out", async () => {
+      const org2 = peer("Org2MSP", async () => {
+        throw new CommitStatusError({ code: grpcStatus.DEADLINE_EXCEEDED, details: [], cause, transactionId: "tx-1" });
+      });
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const c = contract({ submitAsync: async () => submitted(0) });
+      await expect(submitVia(c, "RecordMilestone", ["{}"], { otherOrgs: [org2.org] })).resolves.toEqual({ txId: "tx-1", result: '{"ok":1}' });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toMatch(/tx tx-1 committed, but not confirmed on Org2MSP/);
+    });
+
+    it("still returns the result, with one warning, when the other peer reports another code", async () => {
+      const org2 = peer("Org2MSP", async () => ({ ...valid, code: 11, successful: false }));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const c = contract({ submitAsync: async () => submitted(0) });
+      await expect(submitVia(c, "RecordMilestone", ["{}"], { otherOrgs: [org2.org] })).resolves.toMatchObject({ txId: "tx-1" });
+      expect(warn.mock.calls.map((a) => a[0])).toEqual(["gateway: tx tx-1 is VALID on the submitting org but MVCC_READ_CONFLICT on Org2MSP"]);
+    });
+
+    it("does not ask the other peer when the commit is invalid on the submitting org", async () => {
+      const org2 = peer("Org2MSP", async () => valid);
+      const c = contract({ submitAsync: async () => submitted(11) });
+      const err = await submitVia(c, "RecordMilestone", ["{}"], { otherOrgs: [org2.org] }).catch((e) => e);
+      expect([err.failure.kind, org2.seen.calls]).toEqual(["commit", 0]);
+    });
+
+    it("picks one role per other org, none for a single-org config", () => {
+      const org1 = { mspId: "Org1MSP" };
+      const org2 = { mspId: "Org2MSP" };
+      expect(otherOrgRoles({ AD_BANK: org1, EXPORTERS_BODY: org2 }, "AD_BANK")).toEqual(["EXPORTERS_BODY"]);
+      expect(otherOrgRoles({ AD_BANK: org1, EXPORTERS_BODY: org2 }, "EXPORTERS_BODY")).toEqual(["AD_BANK"]);
+      expect(otherOrgRoles({ AD_BANK: org1 }, "AD_BANK")).toEqual([]);
+      expect(otherOrgRoles({ AD_BANK: org1, EXPORTERS_BODY: org2, CUSTOMS_VIEWER: org2 }, "AD_BANK")).toEqual(["EXPORTERS_BODY"]);
+    });
+
+    it("does not wait without other orgs (single-org config)", async () => {
+      const c = contract({ submitAsync: async () => ({ ...submitted(0), getBytes: () => expect.unreachable("getBytes") }) });
+      await expect(submitVia(c, "CreateRecord", ["a"])).resolves.toMatchObject({ txId: "tx-1" });
     });
   });
 

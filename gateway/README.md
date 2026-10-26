@@ -109,6 +109,15 @@ in total, 300 ms apart, and starts a new attempt only while at most 0.9 s has be
 worst case stays at 9.9 s. Nothing else is retried: not other endorse failures, nothing after the
 submit to the orderer, no commit failure, never `OUTCOME_UNKNOWN`.
 
+After a write is VALID on the submitting org's peer, the gateway also waits until the other org's
+peer has committed it (ISS-p3-11), so the next write, endorsed by both orgs, sees it on both. It
+uses its connection for the other org (`Gateway.newCommit` with the submitter's signed commit
+status request) and only what is left of the attempt's 9 s, so the 9.9 s worst case above still
+holds. If that wait times out or fails, or the other peer reports another validation code, the
+gateway logs one warning line and still returns the successful result: the transaction is valid
+on the submitting org, and validation is deterministic. With only one org configured there is no
+second wait.
+
 ## Build, typecheck, test
 
 ```bash
