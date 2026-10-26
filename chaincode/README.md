@@ -114,8 +114,13 @@ bash network/deploy.sh    # packages this folder with -ccl typescript and the AN
   transaction commits. Query afterwards instead of waiting. See also `network/last-block.sh`.
 - ISS-p3-9: after the host sleeps, a Drunix committing peer can panic because its state DB
   died. Check before trusting the network (`network/README.md`).
-- The endorsement negative test (one org alone cannot write) was run on Drunix's `basic` sample,
-  not yet on `receiptbook` (DEP-p3-3, `docs/logs/p3.md`, 2026-10-22 20:22).
+- The endorsement negative test (one org alone cannot write) passes on `receiptbook`:
+  `scripts/e3_endorsement_check.sh` in `.github/workflows/live.yml` (25 Oct 2026, D-33; DEP-p3-3
+  resolved in `docs/logs/p3.md`).
 - The live `WRONG_BANK` test needs a second AD bank org (N2). It is covered by unit tests only.
-- `ListRecords` is a range query over all keys. Behaviour with many records is untested; we make
-  no claim about scale.
+- `ListRecords` is a paged range query over all keys (`LIST_PAGE_SIZE` = 1000), sorted and
+  de-duplicated in the chaincode (ISS-p2-10). Drunix's SQL state DB caps an unpaged range scan at
+  10 rows (source-verified), and its next-page bookmark looks broken [I]. ListRecords never
+  returns a partial list: a full page without a new bookmark, or more than `MAX_LIST_PAGES` (100)
+  pages, is an `INTERNAL` error. On Drunix that likely means about 1000 records at most per call [I].
+  Behaviour with many records is untested; we make no claim about scale.
