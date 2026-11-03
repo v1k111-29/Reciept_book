@@ -8,7 +8,7 @@
 import { createPrivateKey } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import * as grpc from "@grpc/grpc-js";
-import { connect, hash, signers, StatusCode, type Contract, type Gateway } from "@hyperledger/fabric-gateway";
+import { connect, hash, signers, StatusCode, type Commit, type Contract, type Gateway } from "@hyperledger/fabric-gateway";
 import type { GatewayConfig, IdentityConfig } from "../config.js";
 import type { ChaincodeFunction, OrgRole } from "../generated/contracts.js";
 import { LedgerError, type Ledger, type LedgerFailure } from "./types.js";
@@ -16,7 +16,9 @@ import { LedgerError, type Ledger, type LedgerFailure } from "./types.js";
 /**
  * gRPC deadlines in ms. The submit path (endorse + submit + commit status = 9 s) stays under the 10 s
  * timeout of p4's HttpGateway, so a slow commit reaches the backend as OUTCOME_UNKNOWN, not as a
- * client-side LEDGER_UNAVAILABLE (REQ-p3-6). [I] tuned on the emulated test network.
+ * client-side LEDGER_UNAVAILABLE (REQ-p3-6). MISMATCH_RETRY below adds at most 0.9 s (9.9 s worst case);
+ * the wait for the other orgs' commit (ISS-p3-11) only uses what is left of the attempt's 9 s.
+ * [I] tuned on the emulated test network.
  */
 export const DEADLINES_MS = { evaluate: 5000, endorse: 3000, submit: 2000, commitStatus: 4000 } as const;
 
@@ -71,19 +73,112 @@ function rethrow(err: unknown): never {
 
 type ContractLike = Pick<Contract, "submitAsync" | "evaluateTransaction">;
 
-/** Endorse, order, then wait for the commit status, so an invalidated commit and an unknown one differ. */
-export async function submitVia(contract: ContractLike, fn: string, args: string[]): Promise<{ txId: string; result: string }> {
-  try {
-    const submitted = await contract.submitAsync(fn, { arguments: args });
-    const result = utf8.decode(submitted.getResult());
-    const status = await submitted.getStatus();
-    if (!status.successful) {
-      throw new LedgerError({ kind: "commit", commitCode: statusName(status.code), txId: status.transactionId });
+/**
+ * Retry of an endorsement whose peers returned different results (ISS-p3-10). Seen live on Drunix (run
+ * 40278900530): a write right after another on the same key, through the other org, is endorsed while the
+ * first write has committed on one org's peer but not yet on the other's, so the two read different
+ * versions and the peer gateway answers "ProposalResponsePayloads do not match". Nothing was sent to the
+ * orderer, so a fresh proposal (new tx id) cannot record twice. Any other failure is never retried here.
+ *
+ * Time bound: the next attempt starts only while failed attempts plus waits have used at most budgetMs, so
+ * the worst case is budgetMs + one full attempt (DEADLINES_MS endorse + submit + commit status = 9 s)
+ * = 9.9 s, still under p4's 10 s timeout. [I] a mismatch fails in milliseconds, so the 2 waits fit.
+ */
+export const MISMATCH_RETRY = { attempts: 3, waitMs: 300, budgetMs: 900 } as const;
+export type MismatchRetry = { readonly attempts: number; readonly waitMs: number; readonly budgetMs: number };
+
+const PAYLOADS_DO_NOT_MATCH = /ProposalResponsePayloads do not match/i;
+
+/** True for an endorse-stage failure whose peers' results differ (never for anything ordered). */
+export function isEndorseMismatch(err: unknown): boolean {
+  if ((err as FabricErrorLike | null)?.name !== "EndorseError") return false;
+  const failure = toLedgerFailure(err);
+  return failure?.kind === "endorse" && failure.messages.some((m) => PAYLOADS_DO_NOT_MATCH.test(m));
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Another org's peer, asked for the commit status of a transaction the gateway submitted (ISS-p3-11).
+ * `newCommit` is Gateway.newCommit on that org's connection: it sends the submitter's signed commit
+ * status request unchanged, so the other peer checks the submitter's identity against its channel
+ * Readers ACL (Fabric 2.5 default for Gateway_CommitStatus) and blocks until the transaction commits.
+ */
+export interface OtherOrgPeer {
+  /** For the log, e.g. "Org2MSP". */
+  readonly name: string;
+  newCommit(bytes: Uint8Array): Pick<Commit, "getStatus">;
+}
+
+export interface SubmitOptions {
+  retry?: MismatchRetry;
+  /** Peers of the other orgs; empty (the default) means no second wait. */
+  otherOrgs?: readonly OtherOrgPeer[];
+}
+
+/** One attempt's share of the 10 s: endorse + submit + commit status. The other orgs' wait uses what is left. */
+const ATTEMPT_BUDGET_MS = DEADLINES_MS.endorse + DEADLINES_MS.submit + DEADLINES_MS.commitStatus;
+
+/**
+ * Wait until the other orgs' peers have committed the transaction too (ISS-p3-11). Without it, a write
+ * that follows at once is endorsed by a peer that hasn't committed this one yet, and the chaincode there
+ * answers e.g. NOT_FOUND (live run 40281174487). The transaction is already VALID on the submitting org's
+ * peer and validation is deterministic, so a timeout, an error or another code here is logged, never
+ * returned: the caller still gets the successful result. [I] another code should never happen.
+ */
+async function waitForOtherOrgs(bytes: () => Uint8Array, txId: string, others: readonly OtherOrgPeer[], deadline: number) {
+  await Promise.all(
+    others.map(async (org) => {
+      try {
+        if (Date.now() >= deadline) throw new Error("no time left in the submit budget");
+        const status = await org.newCommit(bytes()).getStatus({ deadline });
+        if (!status.successful) {
+          console.warn(`gateway: tx ${txId} is VALID on the submitting org but ${statusName(status.code)} on ${org.name}`);
+        }
+      } catch (err) {
+        const why = (err as Error).message ?? String(err);
+        console.warn(`gateway: tx ${txId} committed, but not confirmed on ${org.name} (${why}); returning the result`);
+      }
+    }),
+  );
+}
+
+/**
+ * Endorse, order, then wait for the commit status, so an invalidated commit and an unknown one differ.
+ * After a VALID commit, also wait for the other orgs' peers (`otherOrgs`) until the attempt's 9 s budget
+ * ends. A new attempt starts within MISMATCH_RETRY.budgetMs, so the worst case stays at 9.9 s.
+ */
+export async function submitVia(
+  contract: ContractLike,
+  fn: string,
+  args: string[],
+  { retry = MISMATCH_RETRY, otherOrgs = [] }: SubmitOptions = {},
+): Promise<{ txId: string; result: string }> {
+  const started = Date.now();
+  for (let attempt = 1; ; attempt++) {
+    const attemptStarted = Date.now();
+    try {
+      // submitAsync builds a new proposal, so each attempt has its own tx id.
+      const submitted = await contract.submitAsync(fn, { arguments: args });
+      const result = utf8.decode(submitted.getResult());
+      const status = await submitted.getStatus();
+      if (!status.successful) {
+        throw new LedgerError({ kind: "commit", commitCode: statusName(status.code), txId: status.transactionId });
+      }
+      // getStatus() above signed the request, so its bytes carry the submitter's signature.
+      await waitForOtherOrgs(() => submitted.getBytes(), status.transactionId, otherOrgs, attemptStarted + ATTEMPT_BUDGET_MS);
+      return { txId: status.transactionId, result };
+    } catch (err) {
+      if (err instanceof LedgerError) throw err;
+      const inBudget = Date.now() - started + retry.waitMs <= retry.budgetMs;
+      if (attempt < retry.attempts && inBudget && isEndorseMismatch(err)) {
+        const txId = (err as FabricErrorLike).transactionId;
+        console.warn(`gateway: ${fn} tx ${txId} endorsement results differ (attempt ${attempt}/${retry.attempts}); retrying`);
+        await sleep(retry.waitMs);
+        continue;
+      }
+      return rethrow(err);
     }
-    return { txId: status.transactionId, result };
-  } catch (err) {
-    if (err instanceof LedgerError) throw err;
-    return rethrow(err);
   }
 }
 
@@ -104,9 +199,20 @@ async function read(path: string, what: string): Promise<Buffer> {
 }
 
 interface Connection {
+  mspId: string;
   client: grpc.Client;
   gateway: Gateway;
   contract: Contract;
+}
+
+/** One configured role per org other than `identity`'s (ISS-p3-11); empty for a single-org config. */
+export function otherOrgRoles(identities: Partial<Record<OrgRole, { mspId: string }>>, identity: OrgRole): OrgRole[] {
+  const own = identities[identity]?.mspId;
+  const byMsp = new Map<string, OrgRole>();
+  for (const [role, id] of Object.entries(identities) as [OrgRole, { mspId: string }][]) {
+    if (id.mspId !== own && !byMsp.has(id.mspId)) byMsp.set(id.mspId, role);
+  }
+  return [...byMsp.values()];
 }
 
 export class FabricLedger implements Ledger {
@@ -139,7 +245,7 @@ export class FabricLedger implements Ledger {
         commitStatusOptions: deadline(DEADLINES_MS.commitStatus),
       });
       const contract = gateway.getNetwork(config.channel).getContract(config.chaincode);
-      connections.set(role, { client, gateway, contract });
+      connections.set(role, { mspId: id.mspId, client, gateway, contract });
     }
     return new FabricLedger(connections);
   }
@@ -149,7 +255,12 @@ export class FabricLedger implements Ledger {
   }
 
   submit(fn: ChaincodeFunction, args: string[], identity: OrgRole): Promise<{ txId: string; result: string }> {
-    return submitVia(this.contract(identity), fn, args);
+    const identities = Object.fromEntries([...this.connections].map(([role, c]) => [role, { mspId: c.mspId }]));
+    const otherOrgs = otherOrgRoles(identities, identity).map((role) => {
+      const { mspId, gateway } = this.connections.get(role)!;
+      return { name: mspId, newCommit: (bytes: Uint8Array) => gateway.newCommit(bytes) };
+    });
+    return submitVia(this.contract(identity), fn, args, { otherOrgs });
   }
 
   evaluate(fn: ChaincodeFunction, args: string[], identity: OrgRole): Promise<string> {
