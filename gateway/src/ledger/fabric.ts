@@ -1,8 +1,8 @@
 /**
- * The real Ledger: Drunix through the Fabric Gateway API. OWNER: P3.
+ * The real Ledger: Drunix through the Fabric Gateway API.
  *
  * Connect pattern from Drunix's asset-transfer-basic/application-gateway-typescript sample, which worked
- * against both peer types of our network with @hyperledger/fabric-gateway 1.13.0 (U-02, docs/logs/p3.md).
+ * against both peer types of our network with @hyperledger/fabric-gateway 1.13.0 (U-02).
  * Fabric errors are converted to LedgerError here; ledger/errors.ts maps those to GatewayResult.
  */
 import { createPrivateKey } from "node:crypto";

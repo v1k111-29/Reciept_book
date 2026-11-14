@@ -1,10 +1,10 @@
 /**
- * Chaincode contract. OWNER: P2. Transaction names must equal contracts ChaincodeFunction.
+ * Chaincode contract. Transaction names must equal contracts ChaincodeFunction.
  *
  * State layout [I]: key = sb_hash, value = JSON ShippingBillRecord. Amounts are NOT stored
  * (private data is non-essential feature N1). ledger_time comes from ctx.stub.getTxTimestamp().
  *
- * Errors are thrown as RuleError, so the peer reports "<ErrorCode>: <message>" (Part 2.3, D-21).
+ * Errors are thrown as RuleError, so the peer reports "<ErrorCode>: <message>" (see docs/ARCHITECTURE.md, D-21).
  * Results are JSON per CHAINCODE_RESULT. Every endorser must build byte-identical results, so
  * nothing here reads the peer's own clock or anything else that differs between peers.
  */

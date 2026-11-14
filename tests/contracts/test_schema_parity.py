@@ -1,7 +1,7 @@
-"""The committed JSON schema must match contracts.py. Owner: P1.
+"""The committed JSON schema must match contracts.py.
 
 If this fails: run `uv run python scripts/export_schema.py`, commit the JSON, and tell
-every owner (contract change protocol, IMPLEMENTATION_PLAN.md Part 4).
+every owner (contract change protocol, docs/ARCHITECTURE.md).
 """
 
 from __future__ import annotations

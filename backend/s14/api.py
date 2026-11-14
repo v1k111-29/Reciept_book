@@ -59,7 +59,7 @@ from s14.domain.hashing import (
 )
 from s14.gateway_client import Gateway, GatewayUnavailable, HttpGateway
 
-app = FastAPI(title="S14 Receipt Book API", version="0.1.0")
+app = FastAPI(title="Receipt Book API", version="0.1.0")
 _RECORDS_ADAPTER = TypeAdapter(list[ShippingBillRecord])
 
 # Bounded retry of submits that failed with a code in RETRYABLE_ERRORS (REQ-p1-34, D-21).

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # One-command demo: clean network -> deploy chaincode -> gateway -> backend -> seed -> UI.
-# OWNER: P1 (P1-G4-T1). Run on the HOST MACHINE that runs the Drunix network, from a fresh clone:
+# Run on the HOST MACHINE that runs the Drunix network, from a fresh clone:
 #   bash scripts/demo.sh
 # Needs: network/env.sh (copy of network/env.example.sh), docker, uv, node, npm.
 # Untested on a live network from this checkout (no Drunix host here): run it on the host
-# machine and log the output in docs/logs/INTEGRATION_LOG.md before G4 is declared.
+# machine and keep the output as evidence (the team logs were removed; see git history) before G4 is declared.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"

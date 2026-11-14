@@ -1,4 +1,4 @@
-// UI smoke test against the running demo (docs/HOST_RUNBOOK.md step 4). OWNER: P1.
+// UI smoke test against the running demo (docs/RUNBOOK.md step 4).
 // Drives a real browser through the four steps the runbook lists: create a record on the bank
 // desk, record PAYMENT_RECEIVED on it, open the timeline, check the metrics view. Screenshots go
 // to $S14_UI_SHOTS (default .demo-logs/ui). Needs `playwright` resolvable from this process, e.g.
@@ -59,6 +59,38 @@ try {
   await article.getByText("Occurred on: 2026-10-05", { exact: true }).waitFor();
   step(`timeline: ${(await article.textContent()).replace(/\s+/g, " ").slice(0, 300)}`);
   await shot("3-timeline");
+
+  step("live indicator");
+  await page.locator(".live-status").filter({ hasText: /^Live/ }).waitFor({ timeout: 30_000 });
+
+  step("reference check: right reference matches, wrong one does not");
+  const check = article.getByRole("form", { name: "Check a document or reference" });
+  const verdict = article.getByTestId("reference-check-result");
+  await check.getByLabel("Milestone to check").selectOption("PAYMENT_RECEIVED");
+  await check.getByLabel("Raw reference to check").fill(`SYNTHETIC-IRM-${ident}`);
+  await check.getByRole("button", { name: "Check against the ledger" }).click();
+  await verdict.filter({ hasText: /^Matches the ledger/ }).waitFor({ timeout: 30_000 });
+  await check.getByLabel("Raw reference to check").fill(`SYNTHETIC-IRM-${ident}-X`);
+  await check.getByRole("button", { name: "Check against the ledger" }).click();
+  await verdict.filter({ hasText: "Does NOT match the ledger" }).waitFor({ timeout: 30_000 });
+  await shot("3b-reference-check");
+
+  step("Customs import: one known shipping bill, one unknown");
+  await page.getByRole("navigation", { name: "Main views" }).getByRole("button", { name: "Customs import" }).click();
+  await page.getByLabel("Or paste CSV text").fill(
+    [
+      "sb_number,port_code,sb_date,customs_status,observed_on",
+      `SYNTHETIC-UI-${ident},INMAA1,2026-10-01,PENDING,2026-10-20`,
+      `SYNTHETIC-UI-${ident}-NONE,INMAA1,2026-10-01,PENDING,2026-10-20`,
+    ].join("\n"),
+  );
+  await page.getByRole("button", { name: "Preview" }).click();
+  await page.getByRole("button", { name: /^Send 2 rows to the ledger/ }).click();
+  const imported = page.getByRole("region", { name: "Import result" });
+  await imported.getByText("1 recorded, 1 not found, 0 failed (of 2).").waitFor({ timeout: 60_000 });
+  // The import's own chaincode event must reach the browser over /events.
+  await page.locator(".live-status").filter({ hasText: /Customs status observed/i }).waitFor({ timeout: 30_000 });
+  await shot("3c-customs-import");
 
   step("check the metrics view");
   await page.getByRole("navigation", { name: "Main views" }).getByRole("button", { name: "Metrics" }).click();

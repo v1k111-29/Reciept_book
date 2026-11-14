@@ -1,67 +1,52 @@
-# S14 Team Briefing (v3): when an exporter's payment goes "missing" in government records, and what our project does about it
+# The problem Receipt Book addresses
 
-*For the 5-member team, DRUNIX Hackathon 2026 (NPCI x Citi). v1 written 15 Oct 2026; v2 16 Oct; **v3 16 Oct 2026** merges v1 and v2 and corrects both. No fintech knowledge is assumed. Hard words are explained where they first appear and again in the **Index of terms (Part 10)**.*
-
----
-
-## What changed, version by version
-
-**v2 over v1** (all kept in v3):
-1. **The eBRC is no longer blocked by the bank's EDPMS closure.** Under DGFT's revamped eBRC system (pilot 15 Nov 2023, all banks moved by 31 Jan 2024), banks send each incoming payment's record (IRM) to DGFT when the money arrives, and the **exporter self-certifies the eBRC**. v1 said "without closure there is no eBRC"; that is wrong for the current system.
-2. **New primary evidence: CAG Report 33 of 2025**, which found Customs' own system (ICES) showing realised payments as pending or even nil, and recommended syncing it with RBI's EDPMS.
-3. **The main harm is now Customs drawback recovery**, not eBRC denial.
-4. **A wide prior-work search** (Part 5), and a **deadline check** (Part 0).
-
-**v3 over v2** (each was checked against its source on 16 Oct; see Part 9):
-1. **MonetaGo correction.** v2 called MonetaGo's Hyperledger Fabric network on TReDS "the best precedent for our pattern" and described it as still running on Fabric. A May 2024 article says the TReDS platforms **migrated that system from DLT to confidential cloud computing**. The precedent now cuts both ways (Parts 5.3, 6.7, 7).
-2. **CAG Report 17 of 2020 figures corrected.** Audit cross-checked 1,377 shipping bills (FOB ₹128.11 crore) and found **609 bills with ₹36.40 crore not realised in time**. The "₹128" is a coincidence with the Mangaluru ₹128 crore: one is the FOB value of goods, the other a drawback amount. Don't mix them up in the pitch.
-3. **Chennai Customs notice** is **Public Notice 21/2024, dated 31 Dec 2024** (v2 said "PN 21, Jan 2025").
-4. **CAG Report 33 of 2025 details added:** 66 observations, 19 recommendations, revenue implication ₹701.69 crore; integration with DGFT, GSTN and SEZ is **Recommendation 8**.
-5. **Deadline:** Project Axis's repo does list 25 Oct 2026 for pitch submission, but under its own challenge code (CHL-7007). Ours may differ.
-6. **Status label:** v2 changes how S14 is framed after the debate ended. Under the debate's own rule this is an **un-debated revision**; see Part 0.
-7. Kept from v1: the measure "days from document hand-over to a provable bank acknowledgement" (now one of three measures, 6.6).
+*Background for users and contributors: when an exporter's payment goes "missing" in government
+records, and what Receipt Book does about it. No fintech knowledge is assumed. Hard words are
+explained where they first appear and again in the **Index of terms (Part 10)**. Section numbers
+are stable: code comments cite them (for example 4.3, 6.3, 6.6 and 6.7).*
 
 ---
 
 ## Contents
 
-0. Read this first: status, honesty notes, deadline, tags
+0. About this document: sources, tags and caveats
 1. The whole thing in 60 seconds
 2. Who is involved (the cast)
 3. How an export is recorded today, step by step
 4. Where it breaks (the problem), with proof
 5. What has been tried before, and where each attempt stops
-6. Our project: what we build and what our role is
-7. Objections we should expect, and honest answers
-8. What the team must do now
+6. Receipt Book: what it records and what its role is
+7. Objections, and honest answers
+8. Open questions worth checking
 9. Sources
 10. **Index of terms** (jargon explained)
 
 ---
 
-## 0. Read this first
+## 0. About this document
 
-**What is and is not settled**
-
-- Our AI-run debate compared 17 problem statements. On its numbers S14 came first (54.9 out of 100, against 48.7 for the next). But the debate's audit **failed**: the briefing notes given to the AI "advocates" contained opinions written by the orchestrating AI, including on S14. So the debate did **not** officially select S14. **The team has chosen it.**
-- **v3 is an un-debated revision.** The debated S14 was "bank delays block the exporter's proof of payment". v3's framing ("three agencies' records disagree, and Customs recovers drawback") rests on evidence the debate never saw (DGFT FAQ, CAG 2025). The debate's scores do not cover it. That is fine for a team choice; just don't present the 54.9 as a score for v3.
-- Three fact-checking AIs rated the need for Drunix as **"weak"** for every finalist, S14 included, and S14's author conceded "a Drunix pilot is optional". CAG's own fix is central (sync ICES with EDPMS), which makes the plain-integration alternative more concrete. Part 6.7 deals with this openly.
-- No teammate has yet opened the sources by hand. Part 8 lists what to open first.
-- S14's own track-fit note says "Partly": the money is an inbound cross-border payment, but the failure is in record-keeping after it arrives.
-- **Deadline:** our notes say 16 Oct. Project Axis, another team in this hackathon, lists in its public repo: 9 Oct build kickoff, **25 Oct pitch submission**, 10 Nov top 25, 10-22 Nov prototype build, 22 Nov final solution, 27 Nov top 5, 4 Dec grand finale (verified 16 Oct). Their challenge code is CHL-7007 (theme Cross-Border Remittances); ours may differ. **Confirm with the organisers today.**
+**Caveat: AI-read, not yet human-verified.** The sources in Part 9 were read and summarised with
+AI tools in October 2026. No source has yet been opened and checked by a person. Where a source
+was re-read by an AI tool and matched, it is marked *checked 16 Oct*; that is still not a human
+read. Treat every figure as "as reported by the source named", and check the source before you
+rely on it.
 
 **Tags used in this file**
 
 | Tag | Meaning |
 |---|---|
 | [P] | Primary source: a regulator, auditor or government document (RBI, DGFT, CAG, Customs, Drunix's own pages) |
-| [S] | Secondary source: news, an advisory firm, a bank FAQ, a trade-body page, another team's repo |
+| [S] | Secondary source: news, an advisory firm, a bank FAQ, a trade-body page |
 | [V] | The source is a company with a commercial interest |
-| [I] | Inference: our reasoning or the AI's, not shown by a source |
+| [I] | Inference: reasoning, not shown by a source |
 | [U] | Unknown or not verified |
-| *checked 16 Oct* | An AI tool re-read the source on 16 Oct and it matched (still not a human read) |
+| *checked 16 Oct* | An AI tool re-read the source on 16 Oct 2026 and it matched (still not a human read) |
 
-Every [P] and [S] is AI-read only. Re-checked on 16 Oct: DGFT eBRC FAQ, CAG Report 33/2025 press release, CAG Report 17/2020 ch. 5, RBI press release of 11 Jul 2025, Chennai PN 21/2024, Project Axis repo.
+Re-checked on 16 Oct 2026: DGFT eBRC FAQ, CAG Report 33/2025 press release, CAG Report 17/2020
+ch. 5, RBI press release of 11 Jul 2025, Chennai PN 21/2024.
+
+**Fit.** The money in this story is an inbound cross-border payment, but the failure is in
+record-keeping after it arrives. Receipt Book addresses the record-keeping, not the payment.
 
 ---
 
@@ -73,7 +58,7 @@ If the record is not updated anywhere along that chain, Customs treats the payme
 
 The proof of payment for incentives (**eBRC**) is now a separate track: since early 2024 the exporter self-certifies it on DGFT's portal from the bank's payment message, without waiting for the bank to close the EDPMS entry [P, checked 16 Oct].
 
-**Our project:** a small pilot of a shared, tamper-evident, time-stamped record for each shipping bill, kept on **Drunix** (NPCI's blockchain platform). The bank and the exporter's side, and later Customs, sign off each milestone ("documents received", "payment received", "eBRC self-certified", "EDPMS marked off", "Customs shows realised"). Everyone can then see and prove which record is out of step, and since when. It does not move money and does not replace EDPMS, DGFT's eBRC system or ICES.
+**Receipt Book:** a shared, tamper-evident, time-stamped record for each shipping bill, kept on **Drunix** (NPCI's blockchain platform). The bank and the exporter's side, and later Customs, sign off each milestone ("documents received", "payment received", "eBRC self-certified", "EDPMS marked off", "Customs shows realised"). Everyone can then see and prove which record is out of step, and since when. It does not move money and does not replace EDPMS, DGFT's eBRC system or ICES.
 
 ---
 
@@ -92,13 +77,13 @@ The proof of payment for incentives (**eBRC**) is now a separate track: since ea
 | **CAG** (Comptroller and Auditor General) | India's national auditor; audited the drawback scheme in Report 33 of 2025 | [P] |
 | **Nasscom** | The IT industry's trade body; wrote to RBI and FEDAI about delays in 2022-23 | [S] |
 | **FEDAI** | The banks' association for foreign-exchange dealing | [S] |
-| **NPCI** | Runs UPI, published Drunix, and is the hackathon organiser (with Citi) | [P] |
+| **NPCI** | Runs UPI and published Drunix | [P] |
 
 ---
 
 ## 3. How an export is recorded today, step by step
 
-*The "before" picture, without our project. Follow one shipment. "Asha" is invented for illustration.*
+*The "before" picture, without Receipt Book. Follow one shipment. "Asha" is invented for illustration.*
 
 **Step 1. Ship the goods and file a shipping bill.** Asha, who makes machine parts, ships a consignment to a US buyer. A **shipping bill** is the customs paper filed for each export shipment. The "flow of shipping bills from the Customs Authority has been automated through ICEGATE", so an EDPMS entry opens [P: RBI press release, 11 Jul 2025, checked 16 Oct]. (Software and other service exporters use a different lane; see the end of this part.)
 
@@ -119,8 +104,8 @@ The proof of payment for incentives (**eBRC**) is now a separate track: since ea
 **Shortcuts and a different lane**
 
 - *Small bills:* since RBI **Circular 12 of 1 October 2025**, a bank can close entries of **₹10 lakh or less per shipping bill** on the exporter's declaration, given quarterly in bulk; no penal charges for delays on these [S: CAPEXIL]. A bank FAQ (Indian Bank, Mar 2026) says this took effect on **24 Oct 2025**, through an EDPMS **"Small Value Closure" module** [S].
-- *Above ₹10 lakh:* no source we read changes the normal process [I].
-- *Service exporters* file a monthly **EDF** from **1 October 2026**; the bank enters it in EDPMS within five working days [S]. Our evidence is about **goods and shipping bills**.
+- *Above ₹10 lakh:* no source read changes the normal process [I].
+- *Service exporters* file a monthly **EDF** from **1 October 2026**; the bank enters it in EDPMS within five working days [S]. The evidence here is about **goods and shipping bills**.
 
 ---
 
@@ -131,7 +116,7 @@ The proof of payment for incentives (**eBRC**) is now a separate track: since ea
 - **Customs recovers drawback with interest** if ICES shows the payment as unrealised [P: Customs notice 12/2024; Chennai PN 21/2024].
 - Exporters face demand notices and manual checks even when the money has arrived: CAG says ICES "continues to display nil realization", compelling "unnecessary manual verification of physical e-BRCs" [P: CAG 33/2025, Para 5.1, checked 16 Oct].
 - Pending entries can put the exporter on a **caution list**, with future shipments flagged [S][V: Skydo]. One source says that if proceeds stay unrealised a year past the due date, further exports need full advance payment or a letter of credit (Regulation 13) [S][V: EximPe; verify in RBI text].
-- **No longer a main harm: eBRC denial.** Before 2024 a bank that didn't close the entry could block the eBRC (Nasscom's Dec 2022 complaint). Now the exporter self-certifies from the IRM [P]. *Residual risk* [U]: some advisory blogs still say the eBRC follows closure. Ask one exporter or CA whether any bank still links them in practice.
+- **No longer a main harm: eBRC denial.** Before 2024 a bank that didn't close the entry could block the eBRC (Nasscom's Dec 2022 complaint). Now the exporter self-certifies from the IRM [P]. *Residual risk* [U]: some advisory blogs still say the eBRC follows closure. Whether any bank still links them in practice is unconfirmed.
 
 ### 4.2 The evidence that it happens at scale
 
@@ -147,17 +132,17 @@ The proof of payment for incentives (**eBRC**) is now a separate track: since ea
 
 *Careful with "₹128":* Mangaluru's ₹128 crore is **drawback**; CAG 2020's ₹128.11 crore is the **FOB value** of the bills it checked. Different things.
 
-### 4.3 What we do NOT know (important)
+### 4.3 What is NOT known (important)
 
 1. **The cause split.** A Customs "payment pending" can come from at least four places [I]:
    - (a) the **bank** hasn't marked off EDPMS;
    - (b) EDPMS is updated but **ICES didn't pick it up** (CAG Paras 3.1, 5.1 show this happens);
    - (c) the **exporter's** paperwork or linkage is missing (an ELP law-firm note, Apr 2024, says EDPMS delays mainly stem from "procedural oversights");
    - (d) **genuine non-payment**.
-   How the 22,539 bills split is **unknown** [U]. The CAG press release gives no count for (b).
+   How the 22,539 bills split is **unknown** [U]. The CAG press release gives no count for (b). Receipt Book's cause buckets (README, "Cause buckets") are a heuristic over these four [I].
 2. **Does it still happen after October 2025?** CAG's 2025 audit covers the year to March 2023 [U].
-3. **Why banks might delay.** "The bank bears no cost while the exporter pays" is our inference [I]; the S14 author withdrew it.
-4. **The five-day rule.** Five working days to *enter* a declaration (Reg 18(1)(a)); no period stated for *marking off* (Reg 18(1)(g)), per the S14 author's reading [U].
+3. **Why banks might delay.** "The bank bears no cost while the exporter pays" is an inference with no source [I]; nothing here relies on it.
+4. **The five-day rule.** Five working days to *enter* a declaration (Reg 18(1)(a)); no period stated for *marking off* (Reg 18(1)(g)), on one reading of the regulation [U].
 5. **Has CBIC acted on CAG's Recommendation 3?** Not found. CBIC Circular 30/2026 (Jul 2026) answers a different CAG point [S].
 6. **The FEDAI advisory's content**: never retrieved [U].
 
@@ -167,7 +152,7 @@ The proof of payment for incentives (**eBRC**) is now a separate track: since ea
 
 *Based on a wide search on 16 Oct 2026. Bottom line: **no public project, product, paper or pilot builds a shared ledger for EDPMS milestones or bank acknowledgements.** Closed bank systems and private repos can't be seen, so "none found" means "none public".*
 
-### 5.1 Government fixes (closest to our problem)
+### 5.1 Government fixes (closest to the problem)
 
 | Attempt | When | What it did | Where it stops | Tag |
 |---|---|---|---|---|
@@ -184,14 +169,14 @@ The proof of payment for incentives (**eBRC**) is now a separate track: since ea
 
 ### 5.2 Commercial tools (exporter side, no ledger)
 
-- **Niryatbox** (2026) describes an EDPMS screen that auto-drafts an email to the bank if an entry stays open past a window, e.g. 14 days after realisation [S][V]. This is our "measure the delay" idea without a ledger.
+- **Niryatbox** (2026) describes an EDPMS screen that auto-drafts an email to the bank if an entry stays open past a window, e.g. 14 days after realisation [S][V]. This is the "measure the delay" idea without a ledger.
 - **Terra Insight** describes reconciling ICEGATE shipping bills, the bank's SWIFT feed, EDPMS and DGFT eBRC data per shipping bill [S][V].
 - **ebrc.in, Skydo, PayGlocal, Razorpay, EximPe:** guides and apps for eBRC generation and EDPMS closure [S][V].
 - **Bank portals:** before the DGFT revamp, some banks let exporters match IRMs to shipping bills on the bank's portal (GJEPC, Nov 2023) [S].
 
 ### 5.3 Blockchain in Indian trade (none targets EDPMS)
 
-| Project | When | What | Relevance to us | Tag |
+| Project | When | What | Relevance | Tag |
 |---|---|---|---|---|
 | **MonetaGo on TReDS** | Live Mar 2018 on Hyperledger Fabric; **moved off DLT in 2024** | Duplicate-invoice check across competing TReDS exchanges without pooling documents. In 2024 RXIL, M1xchange and Invoicemart "migrated the invoice fingerprinting solution from DLT to confidential cloud computing". Still in wide use (C2treds 2025, KredX DTX 2025, SBI Factors 2025, SIDBI 2026) | **Cuts both ways.** It shows competitors will share one fact without sharing documents. It also shows that the operator later found it didn't need a ledger for that | [S] |
 | **IDRBT + MonetaGo proof of concept** | 2017 | RBI's research arm tested a blockchain trade-finance app with NPCI and banks | RBI-side interest; not export realisation | [S] |
@@ -201,28 +186,26 @@ The proof of payment for incentives (**eBRC**) is now a separate track: since ea
 | **CBIC blockchain cargo pilot** | Oct 2021 | Customs pilot for container documents and GPS | Customs has trialled blockchain; logistics, not money | [S] |
 | **NPCI Vajra** | 2019-20 | Permissioned ledger for clearing; NPCI said it would cut reconciliation pain | NPCI's own earlier reconciliation-on-ledger idea | [S] |
 
-**Lesson from abroad:** we.trade (shut June 2022), Contour (bank shareholders stopped funding) and Marco Polo (insolvency after failing to raise cash) closed for money and adoption reasons, not technology [S]. **Propose a small pilot, not a platform that needs everyone on day one.**
+**Lesson from abroad:** we.trade (shut June 2022), Contour (bank shareholders stopped funding) and Marco Polo (insolvency after failing to raise cash) closed for money and adoption reasons, not technology [S]. **Start with a small pilot, not a platform that needs everyone on day one.**
 
-### 5.4 Other teams in this hackathon (public GitHub repos)
-
-RemitSync, Project Axis, Nexus-PvP, Pravah, an RWA settlement project, and **DRUNIX TradeShield** (closest: Indian trade, import side, ICEGATE-style Bill of Entry) [S]. **None found on EDPMS, eBRC or drawback.** Our angle appears unclaimed among public entries [I].
-
-### 5.5 Abroad
+### 5.4 Abroad
 
 No central bank was found using a ledger to monitor export proceeds. Pakistan routes exporter declarations through its Pakistan Single Window (a central system); Bangladesh has run blockchain inland LCs [S].
 
 ---
 
-## 6. Our project: what we build and what our role is
+## 6. Receipt Book: what it records and what its role is
 
 ### 6.1 In one sentence
 
-> A small pilot where an exporters' body and at least two banks keep a shared, time-stamped record of each shipping bill's milestones on Drunix, so that when the bank's EDPMS update, the DGFT eBRC and Customs' records disagree, everyone can see which step is missing, who signed what, and since when.
+> A pilot where an exporters' body and at least two banks keep a shared, time-stamped record of each shipping bill's milestones on Drunix, so that when the bank's EDPMS update, the DGFT eBRC and Customs' records disagree, everyone can see which step is missing, who signed what, and since when.
+
+The software in this repository runs that record on a two-organisation Drunix test network (one AD bank, one exporters' body); see the README for what is built today.
 
 ### 6.2 The picture
 
 ```
-TODAY                                         WITH OUR PILOT (beside, not instead of, existing systems)
+TODAY                                         WITH RECEIPT BOOK (beside, not instead of, existing systems)
 
 Exporter --docs--> Bank --IRM--> DGFT (eBRC)  Exporter --docs--> Bank
                     |                             |                 |
@@ -240,15 +223,15 @@ Exporter --docs--> Bank --IRM--> DGFT (eBRC)  Exporter --docs--> Bank
 
 ### 6.3 What one record contains
 
-From the S14 design (the author's proposal, [I] unless stated):
+Design choices, [I] unless stated:
 
-- **On the shared book (on-chain):** shipping-bill ID; milestones in order: **documents handed over/acknowledged → payment received (IRM reference) → eBRC self-certified (eBRC number) → EDPMS marked off → Customs shows realised**; time stamps; **hashes** of documents. A hash is a short fingerprint: it proves a document hasn't changed without putting the document on the book.
-- **Kept private (off-chain):** invoices, forms, amounts and buyer details stay with bank and exporter. Amounts, if shared, go only to that exporter's bank and the exporters' body (Drunix "private data").
+- **On the shared book (on-chain):** shipping-bill ID; milestones in order: **documents handed over/acknowledged → payment received (IRM reference) → eBRC self-certified (eBRC number) → EDPMS marked off → Customs shows realised**; time stamps; **hashes** of documents. A hash is a short fingerprint: it proves a document hasn't changed without putting the document on the book. In the implementation, the shipping-bill ID and the IRM and eBRC references are stored only as salted hashes.
+- **Kept private (off-chain):** invoices, forms, amounts and buyer details stay with bank and exporter. Amounts, if shared, would go only to that exporter's bank and the exporters' body (Drunix "private data"; not built, see the README roadmap).
 - **Rules enforced on the ledger** (*chaincode*): an acknowledgement is valid only when **both** the bank and the exporter side approve it (an "endorsement policy"); only the remitting bank may mark "EDPMS marked off"; the "eBRC self-certified" milestone is signed by the exporter's side.
 
-### 6.4 Who runs it in the pilot
+### 6.4 Who would run it in a pilot
 
-At least two AD banks (separate legal entities) plus one exporters' body. Each runs a **Lite Peer** (approves transactions) and a **Committing Peer** (records them). The orderer would be shared among members, not run by one party. **RBI, Customs and DGFT could join later as read-only viewers; their systems are not expected to join a pilot** [I]. We have not asked any bank or trade body whether they would join [U].
+At least two AD banks (separate legal entities) plus one exporters' body. Each runs a **Lite Peer** (approves transactions) and a **Committing Peer** (records them). The orderer would be shared among members, not run by one party. **RBI, Customs and DGFT could join later as read-only viewers; their systems are not expected to join a pilot** [I]. No bank or trade body has been asked whether it would join [U].
 
 ### 6.5 A walk-through (invented example)
 
@@ -263,77 +246,72 @@ At least two AD banks (separate legal entities) plus one exporters' body. Each r
 **Can:** make each milestone visible and provable; show when a Customs "pending" contradicts an earlier signed milestone; give exporters evidence instead of phone calls.
 
 **Three measures** (baselines unmeasured today [U]):
-1. Days from **document hand-over** to a provable bank acknowledgement (from v1).
-2. Days from **payment received** to a provable **EDPMS mark-off** (from v2).
-3. **Share of Customs "pending" flags that already had a signed mark-off**: our way to measure the cause split (from v2).
+1. Days from **document hand-over** to a provable bank acknowledgement.
+2. Days from **payment received** to a provable **EDPMS mark-off**.
+3. **Share of Customs "pending" flags that already had a signed mark-off**: a way to measure the cause split.
 
 **Cannot:**
 - Make a bank act faster. It shows delay; it does not force action.
 - Fix the ICES-EDPMS sync. Only CBIC and RBI can do that (CAG Recommendation 3).
 - Fix genuine non-payment.
 - Change rules above ₹10 lakh.
-- Stop DGFT, EDPMS and ICES disagreeing unless they read the book; otherwise ours is a *fourth* record.
+- Stop DGFT, EDPMS and ICES disagreeing unless they read the book; otherwise it is a *fourth* record.
 
 ### 6.7 Why Drunix at all? An honest answer
 
-| Drunix feature | What we use it for |
+| Drunix feature | What Receipt Book uses it for |
 |---|---|
 | **Endorsement policy**: which organisations must approve a transaction | A receipt counts only with both bank and exporter-side signatures |
-| **Private data**: shared only with eligible organisations | Keep amounts away from competing banks |
+| **Private data**: shared only with eligible organisations | Keep amounts away from competing banks (roadmap, not built) |
 | **Ordered ledger** (orderer, committing peers) | One agreed sequence of events across several banks [I] |
 
-**The honest counter-argument** (say it before a judge does):
+**The honest counter-argument:**
 - A **digitally signed receipt** can be checked by anyone without a ledger.
-- **CAG's own fix is central**: sync ICES with EDPMS and integrate ICES with DGFT. Done well, much of the "phantom pending" problem goes away with no ledger.
+- **CAG's own fix is central**: sync ICES with EDPMS and integrate ICES with DGFT. Done well, much of the "phantom pending" problem goes away with no ledger. This plain-integration alternative is concrete and may be cheaper.
 - **MonetaGo moved off DLT in 2024** for its multi-party duplicate check. The closest Indian precedent for "competitors share one fact" chose not to need a ledger in the end.
-- The fact-checkers rated Drunix's need "weak", and S14's rebuttal says "a Drunix pilot is optional".
+- The need for a ledger here is not proven; a shared ledger is optional to the measurement goal.
 
-**Our best answer**, limited to what evidence supports:
+**The best answer**, limited to what the evidence supports:
 - The records sit with **three different owners** (RBI's EDPMS, DGFT's eBRC system, CBIC's ICES), plus several banks, and CAG found their integration deficient [P]. A neutral, ordered record signed by the parties, with no single operator holding the only copy, lets each party prove its own step without waiting for the agencies' systems to agree [I].
-- MonetaGo ran across competing TReDS exchanges on Fabric from 2018 to 2024, which shows the pattern can operate in India. Its later move off DLT shows one operator was enough there; our case has **no obvious single operator**, because the three record-keepers are separate government bodies [I].
-- We say plainly that a central integration may be cheaper, and that the pilot's first job is to **measure** the cause split.
-
-Whether that is enough depends on the organisers' scoring rule, which we do not know. Ask them (Part 8).
+- MonetaGo ran across competing TReDS exchanges on Fabric from 2018 to 2024, which shows the pattern can operate in India. Its later move off DLT shows one operator was enough there; this case has **no obvious single operator**, because the three record-keepers are separate government bodies [I].
+- A central integration may be cheaper, and the first job of any pilot is to **measure** the cause split.
 
 ### 6.8 Drunix facts and risks to know
 
 - Open-source (Apache-2.0) private blockchain published by NPCI, a Hyperledger Fabric fork, "backwards compatible with HLF v2.5.x" [P]. Released publicly June 2026 [S].
 - No speed (transactions-per-second) figures are published. **Make no performance claims** [P].
-- Nine open issues, all filed 30 Jun 2026, including #8 "SQL and Redis written non-atomically on every block commit" [P]. The design assumes a non-SQL state database to avoid it [I].
-- Sample network (`drunix-network/test-network`): Linux only; git, Docker, Go, jq, Bash 4+; `./network.sh prereq`, then `./network.sh up createChannel`; 2 organisations, 6 peers, one Raft orderer; chaincode in Go, Java, JavaScript or TypeScript; default database YugabyteDB [P, tool summary]. If the Project Axis timeline applies to us, the prototype build is 10-22 Nov, after the top-25 cut [S].
+- Nine open issues, all filed 30 Jun 2026, including #8 "SQL and Redis written non-atomically on every block commit" [P]. An early design note assumed a non-SQL state database to avoid it [I]; in practice the test network hard-codes YugabyteDB and Receipt Book keeps it (docs/DECISIONS.md D-23, D-27).
+- Sample network (`drunix-network/test-network`): Linux only; git, Docker, Go, jq, Bash 4+; `./network.sh prereq`, then `./network.sh up createChannel`; 2 organisations, 6 peers, one Raft orderer; chaincode in Go, Java, JavaScript or TypeScript; default database YugabyteDB [P, tool summary]. What was found when running it is in [`network/README.md`](../network/README.md).
 
 ---
 
-## 7. Objections we should expect, and honest answers
+## 7. Objections, and honest answers
 
-| Who might say it | The objection | Our honest answer |
+| Who might say it | The objection | Honest answer |
 |---|---|---|
-| An RBI officer | "EDPMS is the system of record. A parallel ledger adds another record." | True. The pilot sits *beside* EDPMS as a proof layer; the next step would be RBI or CBIC reading it or hosting a node. |
-| A DGFT officer | "The eBRC is self-service since 2024. What's left?" | Agreed; our v1 got this wrong. What's left is the EDPMS mark-off and Customs' drawback records, where CAG found realised payments still showing as pending. |
-| A Customs officer | "CAG told us to sync ICES with EDPMS. Once we do, the problem is gone." | Possibly, and that would be good. The pilot would show how much is sync versus bank delay versus paperwork, which is useful either way. |
-| A bank engineer | "Banks won't share customer data or run nodes for a pilot." | Only fingerprints and statuses go on the book; amounts stay off or in private data. TReDS exchanges did share a Fabric network for six years. Whether banks would join *ours* is untested [U]. |
-| A sharp judge | "MonetaGo dropped blockchain. Why won't you?" | There, one company could run the check for everyone. Here, the three record-keepers are separate agencies and none runs the others' records [I]. If one agency (say CBIC via Trade Connect) took that role, a central system might win, and we'd say so. |
-| A hackathon organiser | "This is not really a remittance problem." | The money is an inbound cross-border payment; the failure is in the record after it lands. The fit is partial and we say so. |
-| A reviewer | "Why not a normal database?" | See 6.7. We say the Drunix need is not yet proven. |
-| A sceptic | "Is the bank even the cause?" | Not always: CAG shows Customs' system is part of it. Measuring the split is the pilot's first deliverable. |
-| A judge who searched | "Has anyone done this?" | Not publicly, as of 16 Oct 2026 (Part 5). We can name the adjacent work. |
+| An RBI officer | "EDPMS is the system of record. A parallel ledger adds another record." | True. Receipt Book sits *beside* EDPMS as a proof layer; the next step would be RBI or CBIC reading it or hosting a node. |
+| A DGFT officer | "The eBRC is self-service since 2024. What's left?" | Agreed: the eBRC is no longer the gap. What's left is the EDPMS mark-off and Customs' drawback records, where CAG found realised payments still showing as pending. |
+| A Customs officer | "CAG told us to sync ICES with EDPMS. Once we do, the problem is gone." | Possibly, and that would be good. A pilot would show how much is sync versus bank delay versus paperwork, which is useful either way. |
+| A bank engineer | "Banks won't share customer data or run nodes for a pilot." | Only fingerprints and statuses go on the book; amounts stay off or in private data. TReDS exchanges did share a Fabric network for six years. Whether banks would join *this* one is untested [U]. |
+| A sceptical reviewer | "MonetaGo dropped blockchain. Why won't you?" | There, one company could run the check for everyone. Here, the three record-keepers are separate agencies and none runs the others' records [I]. If one agency (say CBIC via Trade Connect) took that role, a central system might win. |
+| A reviewer | "This is not really a payments problem." | The money is an inbound cross-border payment; the failure is in the record after it lands. The fit is partial. |
+| A reviewer | "Why not a normal database?" | See 6.7. The Drunix need is not yet proven. |
+| A sceptic | "Is the bank even the cause?" | Not always: CAG shows Customs' system is part of it. Measuring the split is the first deliverable. |
+| Someone who searched | "Has anyone done this?" | Not publicly, as of 16 Oct 2026 (Part 5). The adjacent work is listed there. |
 
 ---
 
-## 8. What the team must do now
+## 8. Open questions worth checking
 
-1. **Confirm the deadline** (16 Oct vs 25 Oct), our challenge code, and the pitch format with the organisers. Also ask: is a prototype required at pitch stage; is a partial fit with Cross-Border Remittances acceptable; is a Drunix pitch that admits a plain-database baseline acceptable.
-2. **Open the two key sources first** (about 20 minutes each):
+1. **Open the two key sources by hand** (about 20 minutes each):
    - DGFT FAQ on eBRC self-certification (Q23, Q25, Q28, Q30, Q41, Q50, Q57).
    - CAG Report 33 of 2025: the press release, then Paras 3.1 and 5.1 and Recommendations 3 and 8 in the full report. Look for any count of bills shown pending despite realisation.
-3. **Then:** Customs notice 12/2024; RBI regulations (Reg 4(2), 18(1)(a), 18(1)(g)); Chennai PN 21/2024; the two Nasscom pages; RBI Circular 12; CAG 17/2020 ch. 5. Links in Part 9.
-4. **Ask two or three exporters, a CA, or a trade body:**
+2. **Then:** Customs notice 12/2024; RBI regulations (Reg 4(2), 18(1)(a), 18(1)(g)); Chennai PN 21/2024; the two Nasscom pages; RBI Circular 12; CAG 17/2020 ch. 5. Links in Part 9.
+3. **Ask exporters, a CA, or a trade body:**
    - Since 2024, do you self-certify your eBRC? Has any bank still made you wait for closure?
    - Have you had a drawback-recovery notice **after** the money had arrived and the eBRC was generated? Was it the bank or Customs' record?
    - How long does your bank take to mark off EDPMS after payment?
-   If most cases are Customs' own sync, tell the team lead: the pitch then centres on the three-agency record, not bank behaviour.
-5. **Prototype:** if a prototype is needed (now or 10-22 Nov), one teammate with Linux (or WSL2/VM, our inference) runs the test network.
-6. **Pitch skeleton:** problem with proof (CAG 2025 + Customs notices), the process (Part 3), the gap (Part 4), what exists (Part 5, briefly), what we build (Part 6), honest limits (6.6, 6.7).
+   If most cases are Customs' own sync, the emphasis belongs on the three-agency record, not on bank behaviour.
 
 ---
 
@@ -374,20 +352,18 @@ Whether that is enough depends on the organisers' scoring rule, which we do not 
 | 22 | IBBIC: https://www.grantthornton.in/insights/blogs/ibbic-paving-way-for-blockchain-adoption-by-indian-banks/ ; status Dec 2022: https://inc42.com/?p=373063 |
 | 23 | Federal Bank-WaveBL: https://www.tradefinanceglobal.com/posts/wavebl-federal-bank-partner-streamline-digital-trade-announce-successful-transaction-india/ ; HSBC-Reliance: https://www.businesstoday.in/current/economy-politics/in-a-first-hsbc-makes-overseas-transaction-for-reliance-industries-via-blockchain/story/288305.html |
 | 24 | CBIC blockchain cargo pilot: https://qz.com/india/2075021/india-is-testing-blockchain-technology-for-its-logistics-industry ; NPCI Vajra: https://www.mobigyaan.com/npci-vajra-blockchain-platform-announced |
-| 25 ✔ | Other Drunix teams: https://github.com/ferroflux/project-axis (timeline checked) ; https://github.com/charveemasand108/Remitsync ; https://github.com/ShreyasDr71/citixdrunx ; https://github.com/Froglodyte/nexus-pvp ; https://github.com/ParthSawant1405/Pravah ; https://github.com/Sakshihr18/gamma_ |
-| 26 | Pakistan exporter declarations via PSW: https://nukta.com/pakistan-central-bank-tightens-exporter-declaration-rules |
-| 27 | Blockchain trade-finance closures: https://www.fintechfutures.com/blockchain-crypto-digital-assets/blockchain-based-trade-finance-platform-we-trade-shuts-shop ; https://www.gtreview.com/news/fintech/exclusive-contour-to-shut-down-as-bank-shareholders-pull-funding/ ; https://www.gtreview.com/news/fintech/marco-polo-brings-in-liquidators-as-funds-run-dry/ |
-| 28 | ELP note, April 2024 (seen only through the S14 rebuttal): https://elplaw.in/wp-content/uploads/2024/04/Export-Import-Transactions-Navigating-Compliance-Challenges-of-EDPMS-IDPMS.pdf |
+| 25 | Pakistan exporter declarations via PSW: https://nukta.com/pakistan-central-bank-tightens-exporter-declaration-rules |
+| 26 | Blockchain trade-finance closures: https://www.fintechfutures.com/blockchain-crypto-digital-assets/blockchain-based-trade-finance-platform-we-trade-shuts-shop ; https://www.gtreview.com/news/fintech/exclusive-contour-to-shut-down-as-bank-shareholders-pull-funding/ ; https://www.gtreview.com/news/fintech/marco-polo-brings-in-liquidators-as-funds-run-dry/ |
+| 27 | ELP note, April 2024 (known only as quoted elsewhere; not read directly): https://elplaw.in/wp-content/uploads/2024/04/Export-Import-Transactions-Navigating-Compliance-Challenges-of-EDPMS-IDPMS.pdf |
 
 **Vendor [S][V]**
 
 | # | Source |
 |---|---|
-| 29 | EximPe: https://eximpe.com/blog/b2b/edpms-vs-idpms ; https://eximpe.com/blog/b2b/brc-vs-ebrc-export-documentation |
-| 30 | Skydo: https://www.skydo.com/blog/understanding-edpms-full-form-and-its-essential-role-in-export-management ; https://www.skydo.com/blog/edpms-entry-not-closed |
-| 31 | Niryatbox: https://niryatbox.com/blog/edpms-closure-for-indian-service-exporters ; Terra Insight: https://www.terra-insight.com/insights/e-brc-electronic-bank-realisation-certificate-textile-export/ ; ebrc.in: https://ebrc.in/resources/how-to-generate-ebrc-on-dgft-portal |
-| 32 | taxguru, EDPMS visibility (Dec 2025): https://taxguru.in/rbi/faster-payments-edpms-rbi-bank-real-time-visibility-shipments.html ; startupadvisory.in, EDF rules: https://www.startupadvisory.in/blog-export-of-services-reporting-rbi-edf-fema-2026.htm (note: this page also says "without closure there is no eBRC", which DGFT's FAQ contradicts) |
-| 33 | The debate record (S14 opening, rebuttal, fact-check, FINAL.md) in `drunix-debate/` of the debate-log zip |
+| 28 | EximPe: https://eximpe.com/blog/b2b/edpms-vs-idpms ; https://eximpe.com/blog/b2b/brc-vs-ebrc-export-documentation |
+| 29 | Skydo: https://www.skydo.com/blog/understanding-edpms-full-form-and-its-essential-role-in-export-management ; https://www.skydo.com/blog/edpms-entry-not-closed |
+| 30 | Niryatbox: https://niryatbox.com/blog/edpms-closure-for-indian-service-exporters ; Terra Insight: https://www.terra-insight.com/insights/e-brc-electronic-bank-realisation-certificate-textile-export/ ; ebrc.in: https://ebrc.in/resources/how-to-generate-ebrc-on-dgft-portal |
+| 31 | taxguru, EDPMS visibility (Dec 2025): https://taxguru.in/rbi/faster-payments-edpms-rbi-bank-real-time-visibility-shipments.html ; startupadvisory.in, EDF rules: https://www.startupadvisory.in/blog-export-of-services-reporting-rbi-edf-fema-2026.htm (note: this page also says "without closure there is no eBRC", which DGFT's FAQ contradicts) |
 
 ---
 
@@ -456,10 +432,8 @@ Whether that is enough depends on the organisers' scoring rule, which we do not 
 - **State database (YugabyteDB, CouchDB, LevelDB):** Where a ledger node stores the current value of each record. Issue #8 concerns the SQL (Yugabyte) setup.
 - **Tamper-evident:** Changes can be detected afterwards. It does not mean changes are impossible.
 - **Time stamp†:** A recorded time showing when something was done.
-- **Track:** One of the hackathon's three themes: Real-Time Payments, Real Asset Tokenization, Cross-Border Remittances.
 - **Trade Connect:** The Commerce Ministry's e-platform (trade.gov.in) linking exporters with DGFT, Customs and others; includes issue logging.
 - **TReDS:** Trade Receivables Discounting System, RBI-licensed exchanges where small businesses sell invoices for early payment.
-- **Un-debated revision:** A version of a statement changed after the debate ended, so the debate's scores don't cover it.
 - **UPI:** Unified Payments Interface, India's instant bank-to-bank payment system, run by NPCI.
 - **Validation Service:** In Drunix, a stateless component that checks transactions so the peers can scale.
 - **Vajra:** NPCI's earlier (2019-20) permissioned blockchain for payment clearing and reconciliation.

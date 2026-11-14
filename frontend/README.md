@@ -1,6 +1,6 @@
 # Frontend (React, Vite, TypeScript)
 
-The browser UI for the S14 Receipt Book pilot. It lets a bank clerk and an exporters' body
+The browser UI for the Receipt Book pilot. It lets a bank clerk and an exporters' body
 clerk record milestones for a shipping bill, and lets anyone see the timeline, the likely
 cause of a Customs "pending", and the pilot metrics. It talks only to the backend, never to
 the gateway or Drunix. It moves no money and replaces no government system.
@@ -10,12 +10,13 @@ timeline view says "Synthetic demo data."
 
 ## Views
 
-The nav bar switches between four views in `src/App.tsx`.
+The nav bar switches between five views in `src/App.tsx`.
 
 | View | What it does |
 |---|---|
 | Bank desk | Create a record (shipping bill number, port code, date). Record milestones as `AD_BANK`. |
 | Exporters' desk | Record milestones as `EXPORTERS_BODY`. |
+| Customs import | Exporters' side. Import a Customs list from a CSV (see below). |
 | Timeline | Lists records from the backend, or looks one up by hash. Shows milestones in `ledger_time` order, who signed, and the cause bucket in plain words. |
 | Metrics | Shows the three pilot measures. A missing measure reads "Not enough data". |
 
@@ -28,10 +29,36 @@ The reference field appears only for milestones in `REFERENCE_REQUIRED`. The raw
 sent to the backend, which hashes it. The Customs status select appears only for
 `CUSTOMS_STATUS_OBSERVED`.
 
+## Live updates
+
+`subscribeEvents` in `src/api.ts` opens `EventSource("/api/events")` and listens for the named
+`MilestoneRecorded` event (malformed data is ignored). Where `EventSource` does not exist it is a
+no-op. `App` subscribes once and shows "Live" or "Offline" plus the latest event in words. Events
+are debounced to one refresh per 500 ms: the record list, the open record (if the event touched it)
+and the metrics view reload.
+
+## Customs import
+
+The "Customs import" view (role from `WRITER_ROLE[CUSTOMS_STATUS_OBSERVED]`) takes a .csv file or
+pasted text with header `sb_number,port_code,sb_date,customs_status,observed_on`. `src/csv.ts`
+validates it in the browser (case-insensitive header and status, trimmed fields, blank lines
+skipped, quoted fields, CRLF, at most `CUSTOMS_IMPORT_MAX_ROWS` rows) and lists errors by line. A
+preview table comes first; "Send" calls `api.importCustoms` and shows recorded / not found /
+failed totals and a per-row table. A sample CSV can be downloaded. Sample data is synthetic.
+
+## Document fingerprint check
+
+On a timeline record, "Check a document or reference" calls `api.checkReference` for a milestone
+in `REFERENCE_REQUIRED`. A chosen file is hashed in the browser (`src/fingerprint.ts`, WebCrypto
+SHA-256, lowercase hex) and that hex is the reference; the file is never uploaded. The result reads
+"Matches the ledger (recorded <time>, tx <id>)", "Does NOT match the ledger" or "No <milestone>
+recorded yet". The bank desk form has an optional file picker that fills the reference field with
+the same fingerprint, so a later check can succeed.
+
 ## API client
 
 `src/api.ts` has one function per backend route: `createRecord`, `recordMilestone`,
-`getTimeline`, `listRecords`, `getMetrics`. Paths follow `BACKEND_ROUTES` under the `/api`
+`getTimeline`, `listRecords`, `getMetrics`, `importCustoms`, `checkReference`, `subscribeEvents`. Paths follow `BACKEND_ROUTES` under the `/api`
 prefix. `App` takes an optional `api` prop, so tests can pass a fake.
 
 A non-2xx reply throws `ApiError`. Its `code` is the contract `ErrorCode` from the backend's
@@ -49,7 +76,7 @@ same proxy is set for both `server` and `preview`, so these two both reach the b
 - `npm run build && npx vite preview` (serves the production build in `dist/`)
 
 Any other static host serving `dist/` has no proxy. It needs the same rewrite: forward
-`/api/<path>` to the backend as `/<path>` (ISS-p5-1 in `docs/logs/p5.md`).
+`/api/<path>` to the backend as `/<path>` (ISS-p5-1).
 
 ## Commands
 

@@ -1,5 +1,5 @@
 /**
- * HTTP server. OWNER: P3. Routes must equal contracts GATEWAY_ROUTES.
+ * HTTP server. Routes must equal contracts GATEWAY_ROUTES.
  *   GET  /health   -> HealthResponse
  *   POST /submit   GatewayRequest -> GatewayResult  (CHAINCODE_WRITES only: endorse, order, commit)
  *   POST /evaluate GatewayRequest -> GatewayResult  (every other function: read-only query)
@@ -155,7 +155,7 @@ function eventIdentity(ledger: Ledger): OrgRole | undefined {
 
 /**
  * GET /events: one ledger event subscription per client. Client gone -> timer stopped, subscription
- * closed. Event stream ends or fails -> response ended (the client reconnects; no replay, D-N4).
+ * closed. Event stream ends or fails -> response ended (the client reconnects; no replay, D-34).
  */
 function streamEvents(req: IncomingMessage, res: ServerResponse, ledger: Ledger | undefined, keepAliveMs: number, open: Map<Socket, () => void>): void {
   const identity = ledger?.events ? eventIdentity(ledger) : undefined;

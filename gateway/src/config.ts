@@ -1,5 +1,5 @@
 /**
- * Gateway configuration from environment variables. OWNER: P3.
+ * Gateway configuration from environment variables.
  *
  * One identity per OrgRole (contracts OrgRole). Roles in contracts DEFAULT_MSP_ROLES are required;
  * any other role (CUSTOMS_VIEWER) is optional, but once one of its variables is set, all are needed.
@@ -14,7 +14,7 @@
  *   S14_<ROLE>_CERT / _KEY       path to the client identity cert / private key
  *   S14_<ROLE>_PEER_HOST_ALIAS   optional TLS host name override, e.g. peer0.org1.example.com
  *
- * Drunix test network (U-02, docs/logs/p3.md 18 Oct 2026): both lite and committing peers serve the
+ * Drunix test network (U-02, tested 18 Oct 2026): both lite and committing peers serve the
  * Gateway API. Tested values, with paths under drunix-network/test-network/organizations/
  * peerOrganizations/orgN.example.com/:
  *   AD_BANK         Org1MSP  localhost:7051  alias peer0.org1.example.com

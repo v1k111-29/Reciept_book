@@ -1,9 +1,9 @@
 /**
- * Map a LedgerFailure to a failed GatewayResult and its HTTP status. OWNER: P3. Pure.
+ * Map a LedgerFailure to a failed GatewayResult and its HTTP status. Pure.
  *
  * Rules: contracts GatewayResult docstring (D-20, D-21), REQ-p1-21, REQ-p1-30, REQ-p1-33.
  * A chaincode error reaches us in each endorsing peer's detail as
- * "chaincode response 500, <ErrorCode>: <message>" (seen on Drunix, docs/logs/p3.md 18 Oct 2026).
+ * "chaincode response 500, <ErrorCode>: <message>" (seen on Drunix, 18 Oct 2026).
  */
 import { ERROR_HTTP_STATUS, ErrorCode, type GatewayResult } from "../generated/contracts.js";
 import type { LedgerFailure } from "./types.js";
