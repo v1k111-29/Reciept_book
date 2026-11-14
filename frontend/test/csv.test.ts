@@ -54,4 +54,15 @@ describe("customs CSV parser", () => {
     const ok = parseCustomsCsv([H, ...lines.slice(0, CUSTOMS_IMPORT_MAX_ROWS)].join("\n"));
     expect(ok.rows).toHaveLength(CUSTOMS_IMPORT_MAX_ROWS);
   });
+
+  it("rejects identifiers longer than the contract allows", () => {
+    const { rows, errors } = parseCustomsCsv(
+      [H, "SYNTHETIC-123456789012,INMAA1,2026-10-01,PENDING,2026-10-20", "SYN-1,INMAA1234567,2026-10-01,PENDING,2026-10-20"].join("\n"),
+    );
+    expect(rows).toHaveLength(0);
+    expect(errors.map((e) => e.message)).toEqual([
+      "sb_number is longer than 20 characters.",
+      "port_code is longer than 10 characters.",
+    ]);
+  });
 });

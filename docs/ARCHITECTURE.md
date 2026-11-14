@@ -18,7 +18,7 @@ design decisions are in [DECISIONS.md](DECISIONS.md) (cited as D-n).
    ▼
  Gateway (Node, TypeScript) :8800         gateway/
    │  @hyperledger/fabric-gateway, one gRPC connection and identity per org,
-   │  error mapping, commit-status wait, chaincode event subscription
+   │  error mapping, commit-status wait, events published on VALID commit
    │  gRPC (Fabric Gateway protocol)
    ▼
  Drunix test network                      network/ (wraps npci/drunix test-network)
@@ -75,8 +75,8 @@ Recording PAYMENT_RECEIVED from the bank desk:
 6. The gateway returns a `GatewayResult` with `tx_id` and the `MilestoneEvent` as parsed JSON.
    The backend checks the payload against `CHAINCODE_RESULT` (INTERNAL on mismatch, D-26) and
    returns a `TxReceipt` `{sb_hash, tx_id}`.
-7. On commit the chaincode's `MilestoneRecorded` event reaches every open `/events` stream
-   (see "Events").
+7. After step 5 the gateway publishes a `MilestoneRecorded` event to every open `/events`
+   stream (see "Events").
 
 Creating a record is the same path with `CreateRecord` and `[sb_hash]`, always signed as the
 AD bank (`CREATE_RECORD_ROLE`); that org becomes the record's `bank_msp`.
@@ -182,10 +182,10 @@ comes back as OUTCOME_UNKNOWN rather than LEDGER_UNAVAILABLE. See
 ## Events
 
 ```
-chaincode RecordMilestone ──emits── "MilestoneRecorded" (payload: MilestoneEvent JSON)
-        │ committed in a block
+gateway  POST /submit RecordMilestone ── commit status VALID, other org's peer committed
+        │ publishes in-process: MilestoneRecorded (payload: the transaction result, MilestoneEvent JSON)
         ▼
-gateway  GET /events     one chaincode-event subscription per client, from the next block on
+gateway  GET /events     one in-memory subscription per client, events published from now on
         │                 event: MilestoneRecorded / data: <LedgerEvent JSON>; ": ..." keep-alives
         ▼
 backend  GET /events     relays the gateway's stream verbatim
@@ -197,7 +197,10 @@ browser  EventSource("/api/events")   refreshes the open views
   carries hashes only.
 - New events only: there is no replay. A client that reconnects misses events committed while it
   was away and should reload the data it shows.
-- `CreateRecord` emits no event.
+- The gateway, not a peer, is the event source (D-34): Drunix lite peers send no block or
+  chaincode events, but their commit status works. Only writes made through this gateway
+  instance produce events. The chaincode still emits `MilestoneRecorded` with the same payload.
+- `CreateRecord` produces no event, nor does a write that is invalidated or whose outcome is unknown.
 - With no event source configured the gateway answers LEDGER_UNAVAILABLE (503).
 
 ## Endorsement policy

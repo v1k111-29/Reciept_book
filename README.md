@@ -51,7 +51,7 @@ Implemented in 1.0.0 (details and test locations in [FEATURES.md](FEATURES.md)):
 - Bank desk and exporters' desk that offer only the milestones each role may write.
 - Privacy: no raw shipping-bill, IRM or eBRC numbers on the ledger.
 - CI, a live end-to-end suite on Drunix, and synthetic seed data.
-- Live UI updates from chaincode events over server-sent events (`GET /events`).
+- Live UI updates when a milestone commits (server-sent events, `GET /events`).
 - Bulk import of a Customs pending/realised list from CSV (`POST /customs/import`).
 - Document and reference fingerprint check (`POST /records/{sb_hash}/reference-check`): the
   browser computes a file's SHA-256 and only that is sent; the file is never uploaded.
@@ -314,7 +314,10 @@ Not built yet (details in [FEATURES.md](FEATURES.md)):
   `acting_as`; anyone who can reach the backend can act for either organisation.
 - **Customs observations are signed by the exporters' body**, including bulk imports, until
   Customs can join as an organisation.
-- **Events have no replay.** A client that reconnects misses events committed while it was away.
+- **Events have no replay, and come from one gateway.** A client that reconnects misses events
+  committed while it was away. Drunix lite peers send no block events, so the gateway publishes
+  an event when a milestone it submitted commits; writes through another gateway instance
+  produce no event here (D-34).
 - **Endorsement lag.** Right after a write, the two organisations' peers can briefly disagree.
   The gateway retries mismatched endorsements and waits for the other organisation's commit, but
   a residual lag can still surface as an error; see [docs/RUNBOOK.md](docs/RUNBOOK.md).

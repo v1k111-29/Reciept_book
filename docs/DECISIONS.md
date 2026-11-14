@@ -150,3 +150,12 @@ screenshots are kept as the run's `live-evidence` artifact.
 Why: live UI updates without polling; importing the pending/realised lists Customs publishes
 mirrors how Customs works today ([PROBLEM.md](PROBLEM.md) 4.2); the fingerprint check
 demonstrates tamper evidence.
+
+*Event source (added 14 Nov 2026):* the gateway publishes the `MilestoneRecorded` event itself,
+in-process, when a `RecordMilestone` it submitted is confirmed VALID by commit status (after the
+other org's peer has committed it too). It does not subscribe to peer chaincode events: Drunix lite
+peers keep no blocks and send no block or chaincode events ([network/README.md](../network/README.md)),
+so in live run 43583206405 `GET /events` opened but never delivered an event; commit status does
+work on lite peers. Consequence: only writes made through this gateway instance produce events;
+writes through another gateway, or straight to the network, do not. The chaincode still emits
+`MilestoneRecorded` with the same payload for any future block-event consumer.

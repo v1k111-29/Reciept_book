@@ -30,7 +30,7 @@ try {
 
   step("create a record on the bank desk");
   const create = page.getByRole("form", { name: "Create record" });
-  await create.getByLabel("Shipping bill number").fill(`SYNTHETIC-UI-${ident}`);
+  await create.getByLabel("Shipping bill number").fill(`SYN-UI-${ident}`);
   await create.getByLabel("Port code").fill("INMAA1");
   await create.getByLabel("Shipping bill date").fill("2026-10-01");
   await create.getByRole("button", { name: "Create record" }).click();
@@ -80,8 +80,8 @@ try {
   await page.getByLabel("Or paste CSV text").fill(
     [
       "sb_number,port_code,sb_date,customs_status,observed_on",
-      `SYNTHETIC-UI-${ident},INMAA1,2026-10-01,PENDING,2026-10-20`,
-      `SYNTHETIC-UI-${ident}-NONE,INMAA1,2026-10-01,PENDING,2026-10-20`,
+      `SYN-UI-${ident},INMAA1,2026-10-01,PENDING,2026-10-20`,
+      `SYN-UI-${ident}-N,INMAA1,2026-10-01,PENDING,2026-10-20`,
     ].join("\n"),
   );
   await page.getByRole("button", { name: "Preview" }).click();

@@ -108,7 +108,9 @@ export function parseCustomsCsv(text: string): CsvParseResult {
     const [sb, port, sbDate, status, observed] = rec.fields.map((f) => f.trim());
     const problems: string[] = [];
     if (!sb) problems.push("sb_number is empty");
+    if (sb.length > 20) problems.push("sb_number is longer than 20 characters");
     if (!port) problems.push("port_code is empty");
+    if (port.length > 10) problems.push("port_code is longer than 10 characters");
     if (!validDate(sbDate)) problems.push("sb_date must be a date as YYYY-MM-DD");
     const st = status.toUpperCase();
     if (!statuses.includes(st)) problems.push(`customs_status must be ${statuses.join(" or ")}`);
