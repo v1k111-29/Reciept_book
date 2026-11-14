@@ -1,0 +1,31 @@
+# Caddy for the single-VM kit (docs/DEPLOY.md). Values come from environment variables
+# (deploy/.env via deploy/docker-compose.yml); {$VAR:default} is Caddy's env placeholder.
+#   SITE_ADDRESS     ":80" (plain HTTP, default) or a domain name such as receipts.example.org
+#                    (automatic HTTPS; ports 80 and 443 must reach this VM)
+#   BASIC_AUTH_USER  user name
+#   BASIC_AUTH_HASH  bcrypt hash from `caddy hash-password`
+# The application has no login of its own, and the backend signs as whichever organisation a
+# request names, so basic auth covers EVERYTHING: the UI, /api and the event stream.
+
+{$SITE_ADDRESS::80} {
+	basic_auth {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+
+	# Backend, prefix stripped (the UI calls /api/..., the backend serves /...; same rewrite as
+	# frontend/vite.config.ts). flush_interval -1 streams GET /api/events (server-sent events)
+	# without buffering. No compression here, so the event stream is never held back.
+	handle_path /api/* {
+		reverse_proxy 127.0.0.1:8000 {
+			flush_interval -1
+		}
+	}
+
+	# The built UI; unknown paths fall back to index.html (single-page app).
+	handle {
+		root * /srv
+		encode zstd gzip
+		try_files {path} /index.html
+		file_server
+	}
+}

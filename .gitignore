@@ -9,6 +9,8 @@ dist/
 # local config and secrets: never commit
 .env
 .env.*
+deploy/gateway.env
+deploy/*.tmp
 network/env.sh
 *.pem
 *_sk
@@ -20,3 +22,5 @@ CLAUDE.local.md
 # os
 .DS_Store
 .demo-logs/
+# agent worktrees
+.claude/worktrees/

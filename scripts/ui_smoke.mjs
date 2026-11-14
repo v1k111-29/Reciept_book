@@ -96,7 +96,8 @@ try {
   await page.getByRole("navigation", { name: "Main views" }).getByRole("button", { name: "Metrics" }).click();
   const metrics = page.getByRole("region", { name: "Pilot metrics" });
   await metrics.waitFor();
-  await page.waitForLoadState("networkidle");
+  // No "networkidle" wait: the /events stream keeps one connection open for good.
+  await metrics.getByText(/^Records in demo: \d+$/).or(metrics.getByRole("alert")).first().waitFor({ timeout: 30_000 });
   if (await metrics.getByRole("alert").count()) throw new Error(`metrics error: ${await metrics.getByRole("alert").textContent()}`);
   await metrics.getByText(/^Records in demo: \d+$/).waitFor({ timeout: 30_000 });
   const text = (await metrics.textContent()).replace(/\s+/g, " ");

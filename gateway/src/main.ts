@@ -10,9 +10,9 @@ import { buildServer } from "./server.js";
 async function main(): Promise<void> {
   const config = loadConfig();
   const ledger = await FabricLedger.connect(config);
-  const server = buildServer(ledger).listen(config.port, () => {
+  const server = buildServer(ledger).listen({ port: config.port, host: config.host }, () => {
     const roles = Object.entries(config.identities).map(([role, id]) => `${role}=${id.mspId}@${id.peerEndpoint}`);
-    console.log(`gateway on :${config.port} | channel ${config.channel} | chaincode ${config.chaincode} | ${roles.join(" ")}`);
+    console.log(`gateway on ${config.host ?? ""}:${config.port} | channel ${config.channel} | chaincode ${config.chaincode} | ${roles.join(" ")}`);
   });
   const shutdown = () => {
     server.close(() => {

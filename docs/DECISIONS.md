@@ -159,3 +159,25 @@ so in live run 43583206405 `GET /events` opened but never delivered an event; co
 work on lite peers. Consequence: only writes made through this gateway instance produce events;
 writes through another gateway, or straight to the network, do not. The chaincode still emits
 `MilestoneRecorded` with the same payload for any future block-event consumer.
+
+**D-35 (14 Nov 2026). Single-VM deployment kit: Docker Compose, host networking, Caddy with
+basic auth.** `deploy/` and `scripts/deploy.sh` ([DEPLOY.md](DEPLOY.md)) run the gateway, the
+backend and the built UI as three Compose services on the one Linux VM that also runs the Drunix
+test network (started by the existing `network/` scripts, only when not already running).
+- *Host networking* for all three: the gateway reaches the peers on `localhost:7051/9051` with
+  the TLS host-name overrides of `network/gateway-env.sh` unchanged, and the Drunix
+  `organizations` directory is mounted read-only at its host path, so the generated
+  `deploy/gateway.env` needs no rewriting. Cost: Linux only. The gateway and the backend listen on
+  127.0.0.1 only; for the gateway this needed the new optional `S14_GATEWAY_HOST` (unset = all
+  interfaces, as before).
+- *Caddy with basic auth on everything:* the application has no authentication, and the backend
+  signs as whichever organisation a request names, so nothing may be reachable without a
+  credential. Caddy gives that, automatic HTTPS for a domain, and SSE streaming
+  (`flush_interval -1`) in one Apache-2.0 component. It is one shared credential; per-user login
+  stays on the roadmap.
+- `deploy.sh` writes `S14_HASH_SALT` once and never replaces it (a new salt orphans every hash
+  on the ledger) and stores only the bcrypt hash of the password.
+- Exercised by the `deploykit` step of `.github/workflows/live.yml` (401 without credentials,
+  health, UI, create and read back a record, event-stream keep-alive, idempotent second run).
+*Revisit if:* per-user authentication is built, or the stack must join a network that is not on
+the same machine.

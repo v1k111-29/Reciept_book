@@ -1,0 +1,84 @@
+# Receipt Book on one Linux VM (docs/DEPLOY.md). Start it with `bash scripts/deploy.sh up`, which
+# writes deploy/.env and deploy/gateway.env and sets DEPLOY_UID, DEPLOY_GID and DRUNIX_ORGS_DIR.
+# The Drunix test network runs beside this, started by network/up.sh + network/deploy.sh.
+#
+# network_mode: host (Linux only) for all three services: the gateway reaches the Drunix peers on
+# localhost:7051/9051 with the TLS host-name overrides from network/gateway-env.sh unchanged.
+# The gateway (8800) and the backend (8000) listen on 127.0.0.1 only; Caddy (80/443) is the way in.
+name: receiptbook
+
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.gateway
+    image: receiptbook-gateway:local
+    network_mode: host
+    # The host user who ran network/up.sh owns the crypto material (keys may be mode 0600).
+    user: "${DEPLOY_UID:?set by scripts/deploy.sh}:${DEPLOY_GID:?set by scripts/deploy.sh}"
+    env_file: gateway.env
+    environment:
+      S14_GATEWAY_HOST: 127.0.0.1
+      S14_GATEWAY_PORT: "8800"
+    volumes:
+      # Same absolute path as on the host, so the paths in gateway.env resolve unchanged.
+      - "${DRUNIX_ORGS_DIR:?set by scripts/deploy.sh}:${DRUNIX_ORGS_DIR}:ro"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8800/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    image: receiptbook-backend:local
+    network_mode: host
+    environment:
+      # Never change the salt of a running deployment: every hash on the ledger depends on it.
+      S14_HASH_SALT: "${S14_HASH_SALT:?missing in deploy/.env}"
+      S14_GATEWAY_URL: http://127.0.0.1:8800
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    image: receiptbook-web:local
+    network_mode: host
+    environment:
+      SITE_ADDRESS: "${SITE_ADDRESS:-:80}"
+      BASIC_AUTH_USER: "${BASIC_AUTH_USER:?missing in deploy/.env}"
+      # A bcrypt hash contains '$'. deploy/.env single-quotes it, so compose takes it literally,
+      # and an interpolated value is not interpolated again.
+      BASIC_AUTH_HASH: "${BASIC_AUTH_HASH:?missing in deploy/.env}"
+    volumes:
+      - caddy_data:/data       # certificates and ACME account (keep it: avoids re-issuing)
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      # Caddy's admin API on localhost:2019 (the site itself answers 401 without credentials).
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  caddy_data:
+  caddy_config:

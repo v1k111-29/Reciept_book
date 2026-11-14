@@ -121,6 +121,7 @@ optional `CUSTOMS_VIEWER`.
 | Variable | Meaning |
 |---|---|
 | `S14_GATEWAY_PORT` | Default `8800`. Integer 1-65535. |
+| `S14_GATEWAY_HOST` | Optional listen address, e.g. `127.0.0.1` (the VM kit, [docs/DEPLOY.md](../docs/DEPLOY.md)). Unset: all interfaces, as before. |
 | `S14_CHANNEL`, `S14_CHAINCODE` | Both default to `receiptbook`. |
 | `S14_<ROLE>_MSP_ID` | For example `Org1MSP`. Must agree with `DEFAULT_MSP_ROLES`. |
 | `S14_<ROLE>_PEER_ENDPOINT` | For example `localhost:7051`. |
