@@ -1,22 +1,17 @@
 ## What this PR does
-<!-- one or two sentences; link the task ID from IMPLEMENTATION_PLAN.md Part 3, e.g. P4-G2-T1 -->
+<!-- one or two sentences -->
 
-## Owner and branch
-- Author id: p<N>
-- Branch: p<N>/<gate>-<topic>  ->  develop
-
-## Checklist (all must be true; the lead will not merge otherwise)
-- [ ] I only changed files I own (CODEOWNERS / IMPLEMENTATION_PLAN.md Part 2)
-- [ ] Rebased on the latest `develop`; no merge commits from other people's branches
-- [ ] `bash scripts/check_all.sh` is green on my machine (paste the summary line below)
-- [ ] I removed the xfail / `.fails` marker from every spec test I made pass
-- [ ] No change to contracts.py or `*/src/generated/` (or: this is P1's contract PR)
-- [ ] My log `docs/logs/p<N>.md` has this session's entry, including any issues, conflicts or missing dependencies
+## Checklist
+- [ ] `bash scripts/check_all.sh` is green (paste the summary below)
+- [ ] Spec-test markers removed for every behaviour this PR implements; no test weakened, skipped or deleted to get green
+- [ ] Contracts untouched, or changed per the procedure in CONTRIBUTING.md (version bump, schema export, TS mirror and sync, DECISIONS.md entry); nothing hand-edited in `*/src/generated/`
+- [ ] No secrets, keys, certificates, salts or `network/env.sh`; no raw shipping-bill, IRM or eBRC numbers; any new demo data is synthetic and labelled so
+- [ ] Docs updated where behaviour, commands, configuration or routes changed
 
 ## Test summary
 ```
-<paste counts: python passed/xfailed, chaincode, gateway, frontend>
+<python passed/skipped, chaincode, gateway, frontend>
 ```
 
-## Known issues / follow-ups
-<!-- anything that doesn't match develop, or that someone else must do -->
+## Notes
+<!-- live-run results, follow-ups, anything a reviewer should know -->

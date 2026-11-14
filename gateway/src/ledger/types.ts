@@ -15,6 +15,31 @@ export interface Ledger {
   submit(fn: ChaincodeFunction, args: string[], identity: OrgRole): Promise<{ txId: string; result: string }>;
   /** Read-only query; nothing is committed. Returns the chaincode's raw UTF-8 response. */
   evaluate(fn: ChaincodeFunction, args: string[], identity: OrgRole): Promise<string>;
+  /**
+   * Optional (N4, GET /events): subscribe to MilestoneRecorded events from now on (no replay). The real
+   * Ledger publishes one when a RecordMilestone submitted through it is confirmed VALID by commit status
+   * (Drunix lite peers send no chaincode events, D-34), so `identity` is not used there. `stream` ends or
+   * throws when the subscription ends; `close()` stops it. A Ledger without this method has no event
+   * source, and GET /events answers LEDGER_UNAVAILABLE.
+   */
+  events?(identity: OrgRole): EventSubscription;
+}
+
+/**
+ * One committed MilestoneRecorded event (field names of the SDK's ChaincodeEvent). Built by the gateway
+ * from the commit status and the transaction result, not received from a peer (D-34).
+ */
+export interface ChaincodeEventLike {
+  blockNumber: bigint | number;
+  transactionId: string;
+  eventName: string;
+  /** The event payload: UTF-8 JSON bytes. */
+  payload: Uint8Array;
+}
+
+export interface EventSubscription {
+  stream: AsyncIterable<ChaincodeEventLike>;
+  close(): void;
 }
 
 export type LedgerFailure =

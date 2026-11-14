@@ -17,9 +17,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
+import time
 import uuid
 from datetime import date
 
+import httpx
 import pytest
 
 from s14.contracts import (
@@ -247,3 +250,108 @@ def test_rejects_second_payment_duplicate_milestone(gw: LiveGateway, sb_hash: st
     result = gw.record_milestone(submission(sb_hash, Milestone.PAYMENT_RECEIVED), OrgRole.AD_BANK)
     assert_rejected(result, ErrorCode.DUPLICATE_MILESTONE)
     assert len(gw.get_record(sb_hash).events) == 1
+
+
+# ------------------------------------------------------- 1.1.0: backend routes on the live network
+
+
+def _salt() -> str:
+    return os.environ.get("S14_HASH_SALT") or "s14-live-synthetic-test-salt"
+
+
+@live
+def test_reference_check_true_for_right_reference_false_for_wrong(gw: LiveGateway, backend_url: str, sb_hash: str):
+    assert gw.create_record(sb_hash).ok
+    raw = f"SYN-DOCS-{uuid.uuid4().hex[:10]}"
+    sub = MilestoneSubmission(
+        sb_hash=sb_hash,
+        milestone=Milestone.DOCS_ACKNOWLEDGED,
+        occurred_on=date.today(),
+        reference_hash=reference_hash(raw, _salt()),
+    )
+    written = gw.record_milestone(sub, OrgRole.AD_BANK)
+    assert written.ok, written.error
+
+    url = f"{backend_url}/records/{sb_hash}/reference-check"
+    good = httpx.post(url, json={"milestone": "DOCS_ACKNOWLEDGED", "reference": raw}, timeout=60)
+    assert good.status_code == 200, good.text
+    assert good.json()["recorded"] is True and good.json()["matches"] is True
+    assert good.json()["tx_id"] == written.tx_id
+    bad = httpx.post(url, json={"milestone": "DOCS_ACKNOWLEDGED", "reference": raw + "-x"}, timeout=60)
+    assert bad.json()["recorded"] is True and bad.json()["matches"] is False
+    absent = httpx.post(url, json={"milestone": "PAYMENT_RECEIVED", "reference": raw}, timeout=60)
+    assert (absent.json()["recorded"], absent.json()["matches"]) == (False, False)
+
+
+@live
+def test_customs_import_records_existing_and_reports_unknown(gw: LiveGateway, backend_url: str):
+    tag = uuid.uuid4().hex[:10].upper()
+    today = date.today()
+    known = (f"SYNSB{tag}", "SYNPORT")
+    sb_hash = shipping_bill_hash(known[0], known[1], today, _salt())
+    assert gw.create_record(sb_hash).ok
+
+    def row(number: str) -> dict:
+        return {
+            "sb_number": number,
+            "port_code": "SYNPORT",
+            "sb_date": str(today),
+            "customs_status": "PENDING",
+            "observed_on": str(today),
+        }
+
+    response = httpx.post(
+        f"{backend_url}/customs/import", json={"rows": [row(known[0]), row(f"SYNUNKNOWN{tag}")]}, timeout=120
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["total"], body["recorded"], body["not_found"], body["failed"]) == (2, 1, 1, 0)
+    assert body["rows"][0]["outcome"] == "RECORDED" and body["rows"][0]["sb_hash"] == sb_hash
+    assert body["rows"][1]["outcome"] == "NOT_FOUND"
+
+    timeline = httpx.get(f"{backend_url}/records/{sb_hash}", timeout=60).json()
+    events = timeline["record"]["events"]
+    assert [e["milestone"] for e in events] == ["CUSTOMS_STATUS_OBSERVED"]
+    assert events[0]["tx_id"] == body["rows"][0]["tx_id"]
+
+
+@live
+def test_events_stream_delivers_milestone_recorded(gw: LiveGateway, backend_url: str, sb_hash: str):
+    assert gw.create_record(sb_hash).ok
+    received = threading.Event()
+    opened = threading.Event()
+    seen: list[str] = []
+    stop = threading.Event()
+
+    def reader() -> None:
+        timeout = httpx.Timeout(10, read=40)  # bounded, so the thread can never hang (no replay: do not reconnect)
+        deadline = time.time() + 40
+        while not stop.is_set() and time.time() < deadline:
+            try:
+                with httpx.stream("GET", f"{backend_url}/events", timeout=timeout) as resp:
+                    assert resp.status_code == 200
+                    assert resp.headers["content-type"].startswith("text/event-stream")
+                    opened.set()
+                    for line in resp.iter_lines():
+                        if stop.is_set() or time.time() > deadline:
+                            return
+                        if line.startswith("data:") and sb_hash in line:
+                            seen.append(line)
+                            received.set()
+                            return
+            except httpx.ReadTimeout:
+                continue
+
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
+    try:
+        assert opened.wait(15), "GET /events did not open"
+        write(gw, sb_hash, Milestone.DOCS_ACKNOWLEDGED)
+        assert received.wait(30), "no MilestoneRecorded event for this sb_hash within 30 s"
+    finally:
+        stop.set()
+        thread.join(timeout=10)
+    event = json.loads(seen[0][len("data:") :].strip())
+    assert event["name"] == "MilestoneRecorded"
+    assert event["event"]["sb_hash"] == sb_hash
+    assert event["event"]["milestone"] == "DOCS_ACKNOWLEDGED"

@@ -38,6 +38,8 @@ def build() -> dict:
         "error_http_status": {k.value: v for k, v in c.ERROR_HTTP_STATUS.items()},
         "backend_routes": c.BACKEND_ROUTES,
         "gateway_routes": c.GATEWAY_ROUTES,
+        "milestone_recorded_event": c.MILESTONE_RECORDED_EVENT,
+        "customs_import_max_rows": c.CUSTOMS_IMPORT_MAX_ROWS,
         "models": {m.__name__: m.model_json_schema() for m in c.SCHEMA_MODELS},
     }
 

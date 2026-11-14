@@ -1,4 +1,4 @@
-# CI: every suite on every PR and on pushes to develop. OWNER: P1.
+# CI: every suite on every PR and on pushes to develop.
 # develop is the only long-lived branch; main is retired (docs/DECISIONS.md D-16).
 # Action versions: verify on the first run (docs/UNKNOWNS.md U-09).
 name: ci
@@ -13,7 +13,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: PR source and target follow docs/GIT_WORKFLOW.md
+      - name: PR source and target follow CONTRIBUTING.md
         env:
           HEAD: ${{ github.head_ref }}
           BASE: ${{ github.base_ref }}

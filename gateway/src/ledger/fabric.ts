@@ -1,17 +1,27 @@
 /**
- * The real Ledger: Drunix through the Fabric Gateway API. OWNER: P3.
+ * The real Ledger: Drunix through the Fabric Gateway API.
  *
  * Connect pattern from Drunix's asset-transfer-basic/application-gateway-typescript sample, which worked
- * against both peer types of our network with @hyperledger/fabric-gateway 1.13.0 (U-02, docs/logs/p3.md).
+ * against both peer types of our network with @hyperledger/fabric-gateway 1.13.0 (U-02).
  * Fabric errors are converted to LedgerError here; ledger/errors.ts maps those to GatewayResult.
  */
 import { createPrivateKey } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import * as grpc from "@grpc/grpc-js";
-import { connect, hash, signers, StatusCode, type Commit, type Contract, type Gateway } from "@hyperledger/fabric-gateway";
+import {
+  connect,
+  hash,
+  signers,
+  StatusCode,
+  type Commit,
+  type Contract,
+  type Gateway,
+  type Network,
+} from "@hyperledger/fabric-gateway";
 import type { GatewayConfig, IdentityConfig } from "../config.js";
-import type { ChaincodeFunction, OrgRole } from "../generated/contracts.js";
-import { LedgerError, type Ledger, type LedgerFailure } from "./types.js";
+import { ChaincodeFunction, MILESTONE_RECORDED_EVENT, type OrgRole } from "../generated/contracts.js";
+import { EventBroadcaster } from "./broadcast.js";
+import { LedgerError, type ChaincodeEventLike, type EventSubscription, type Ledger, type LedgerFailure } from "./types.js";
 
 /**
  * gRPC deadlines in ms. The submit path (endorse + submit + commit status = 9 s) stays under the 10 s
@@ -114,6 +124,12 @@ export interface SubmitOptions {
   retry?: MismatchRetry;
   /** Peers of the other orgs; empty (the default) means no second wait. */
   otherOrgs?: readonly OtherOrgPeer[];
+  /**
+   * Called once with a MilestoneRecorded event when a RecordMilestone commits VALID (D-34): Drunix lite
+   * peers send no chaincode events, so GET /events is fed from here. Never called for another function
+   * or for a commit that is invalid or unknown.
+   */
+  publish?: (ev: ChaincodeEventLike) => void;
 }
 
 /** One attempt's share of the 10 s: endorse + submit + commit status. The other orgs' wait uses what is left. */
@@ -147,12 +163,13 @@ async function waitForOtherOrgs(bytes: () => Uint8Array, txId: string, others: r
  * Endorse, order, then wait for the commit status, so an invalidated commit and an unknown one differ.
  * After a VALID commit, also wait for the other orgs' peers (`otherOrgs`) until the attempt's 9 s budget
  * ends. A new attempt starts within MISMATCH_RETRY.budgetMs, so the worst case stays at 9.9 s.
+ * A VALID RecordMilestone is then passed to `publish` as a MilestoneRecorded event (D-34).
  */
 export async function submitVia(
   contract: ContractLike,
   fn: string,
   args: string[],
-  { retry = MISMATCH_RETRY, otherOrgs = [] }: SubmitOptions = {},
+  { retry = MISMATCH_RETRY, otherOrgs = [], publish }: SubmitOptions = {},
 ): Promise<{ txId: string; result: string }> {
   const started = Date.now();
   for (let attempt = 1; ; attempt++) {
@@ -160,13 +177,25 @@ export async function submitVia(
     try {
       // submitAsync builds a new proposal, so each attempt has its own tx id.
       const submitted = await contract.submitAsync(fn, { arguments: args });
-      const result = utf8.decode(submitted.getResult());
+      const resultBytes = submitted.getResult();
+      const result = utf8.decode(resultBytes);
       const status = await submitted.getStatus();
       if (!status.successful) {
         throw new LedgerError({ kind: "commit", commitCode: statusName(status.code), txId: status.transactionId });
       }
       // getStatus() above signed the request, so its bytes carry the submitter's signature.
       await waitForOtherOrgs(() => submitted.getBytes(), status.transactionId, otherOrgs, attemptStarted + ATTEMPT_BUDGET_MS);
+      if (publish && fn === ChaincodeFunction.RECORD_MILESTONE) {
+        // Published after waitForOtherOrgs, so a UI refetch triggered by the event finds the record on
+        // both orgs' peers. RecordMilestone's result is the MilestoneEvent JSON: the same bytes the
+        // chaincode sets as the MilestoneRecorded event payload (chaincode/src/receiptBook.ts).
+        publishSafely(publish, {
+          blockNumber: status.blockNumber,
+          transactionId: status.transactionId,
+          eventName: MILESTONE_RECORDED_EVENT,
+          payload: resultBytes,
+        });
+      }
       return { txId: status.transactionId, result };
     } catch (err) {
       if (err instanceof LedgerError) throw err;
@@ -190,6 +219,15 @@ export async function evaluateVia(contract: ContractLike, fn: string, args: stri
   }
 }
 
+/** A publish failure is logged, never returned: the transaction has committed and the caller gets its result. */
+function publishSafely(publish: (ev: ChaincodeEventLike) => void, ev: ChaincodeEventLike): void {
+  try {
+    publish(ev);
+  } catch (err) {
+    console.error(`gateway: could not publish the event of tx ${ev.transactionId}: ${(err as Error)?.message ?? err}`);
+  }
+}
+
 async function read(path: string, what: string): Promise<Buffer> {
   try {
     return await readFile(path);
@@ -202,6 +240,7 @@ interface Connection {
   mspId: string;
   client: grpc.Client;
   gateway: Gateway;
+  network: Network;
   contract: Contract;
 }
 
@@ -216,6 +255,9 @@ export function otherOrgRoles(identities: Partial<Record<OrgRole, { mspId: strin
 }
 
 export class FabricLedger implements Ledger {
+  /** GET /events subscribers; fed by submit() on a VALID RecordMilestone (D-34). */
+  private readonly broadcaster = new EventBroadcaster();
+
   private constructor(private readonly connections: Map<OrgRole, Connection>) {}
 
   /** One gRPC client + Gateway per configured role. Reads the cert/key files now; connects lazily. */
@@ -244,8 +286,9 @@ export class FabricLedger implements Ledger {
         submitOptions: deadline(DEADLINES_MS.submit),
         commitStatusOptions: deadline(DEADLINES_MS.commitStatus),
       });
-      const contract = gateway.getNetwork(config.channel).getContract(config.chaincode);
-      connections.set(role, { mspId: id.mspId, client, gateway, contract });
+      const network = gateway.getNetwork(config.channel);
+      const contract = network.getContract(config.chaincode);
+      connections.set(role, { mspId: id.mspId, client, gateway, network, contract });
     }
     return new FabricLedger(connections);
   }
@@ -260,14 +303,24 @@ export class FabricLedger implements Ledger {
       const { mspId, gateway } = this.connections.get(role)!;
       return { name: mspId, newCommit: (bytes: Uint8Array) => gateway.newCommit(bytes) };
     });
-    return submitVia(this.contract(identity), fn, args, { otherOrgs });
+    return submitVia(this.contract(identity), fn, args, { otherOrgs, publish: (ev) => this.broadcaster.publish(ev) });
   }
 
   evaluate(fn: ChaincodeFunction, args: string[], identity: OrgRole): Promise<string> {
     return evaluateVia(this.contract(identity), fn, args);
   }
 
+  /**
+   * MilestoneRecorded events of RecordMilestone transactions submitted through this gateway instance and
+   * confirmed VALID from now on (GET /events, D-34). Drunix lite peers send no block or chaincode events,
+   * so this is not a peer subscription; `identity` is unused but kept in the Ledger interface.
+   */
+  events(_identity: OrgRole): EventSubscription {
+    return this.broadcaster.subscribe();
+  }
+
   close(): void {
+    this.broadcaster.closeAll();
     for (const { gateway, client } of this.connections.values()) {
       gateway.close();
       client.close();

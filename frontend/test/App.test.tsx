@@ -11,13 +11,16 @@ function fakeApi(over: Partial<Api> = {}): Api {
     getTimeline: vi.fn().mockResolvedValue(timelineFixture),
     listRecords: vi.fn().mockResolvedValue([timelineFixture]),
     getMetrics: vi.fn().mockResolvedValue(metricsFixture),
+    importCustoms: vi.fn(),
+    checkReference: vi.fn(),
+    subscribeEvents: vi.fn().mockReturnValue(() => {}),
     ...over,
   };
 }
 
 test("renders the app title and bank desk by default", () => {
   render(<App api={fakeApi()} />);
-  expect(screen.getByRole("heading", { name: "S14 Receipt Book" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Receipt Book" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Bank desk" })).toBeInTheDocument();
 });
 

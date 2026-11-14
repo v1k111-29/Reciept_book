@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
-import { api as realApi, ApiError, type Api } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api as realApi, type Api } from "./api";
+import { fileFingerprint } from "./fingerprint";
+import { errorText, formatMilestone, milestoneInWords, shortHash } from "./format";
+import { ImportView } from "./views/ImportView";
+import { ReferenceCheck } from "./views/ReferenceCheck";
 import {
   CONTRACTS_VERSION,
   CustomsStatus,
@@ -9,11 +13,20 @@ import {
   REFERENCE_REQUIRED,
   WRITER_ROLE,
   type CauseBucket,
+  type LedgerEvent,
   type MetricsSummary,
   type TimelineView,
 } from "./generated/contracts";
 
-type View = "bank" | "exporters" | "timeline" | "metrics";
+type View = "bank" | "exporters" | "import" | "timeline" | "metrics";
+
+/** A burst of ledger events becomes one refresh: a counter plus the record hashes that changed. */
+interface Refresh {
+  tick: number;
+  hashes: string[];
+}
+
+const REFRESH_DEBOUNCE_MS = 500;
 
 const ALL_MILESTONES = Object.values(Milestone) as Milestone[];
 
@@ -25,20 +38,10 @@ const CAUSE_WORDS: Record<CauseBucket, string> = {
   DOWNSTREAM_SYNC: "Marked off by the bank; Customs not yet updated",
 };
 
-export function formatMilestone(value: string) {
-  return value.replaceAll("_", " ");
-}
+export { formatMilestone };
 
 export function causeInWords(bucket: CauseBucket) {
   return CAUSE_WORDS[bucket] ?? formatMilestone(bucket);
-}
-
-function errorText(e: unknown) {
-  if (e instanceof ApiError && e.code === "OUTCOME_UNKNOWN") {
-    return `OUTCOME_UNKNOWN: ${e.message}. The write may have been recorded. Check the timeline before retrying.`;
-  }
-  if (e instanceof ApiError) return `${e.code}: ${e.message}`;
-  return e instanceof Error ? e.message : String(e);
 }
 
 function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash: string) => void }) {
@@ -53,6 +56,18 @@ function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash:
   const [portCode, setPortCode] = useState("");
   const [sbDate, setSbDate] = useState("");
   const [busy, setBusy] = useState(false);
+  const [fileNote, setFileNote] = useState("");
+
+  async function useFileFingerprint(ev: React.ChangeEvent<HTMLInputElement>) {
+    const file = ev.target.files?.[0];
+    if (!file) return;
+    try {
+      setReference(await fileFingerprint(file));
+      setFileNote(`SHA-256 of ${file.name} filled in. The file was not uploaded.`);
+    } catch (e) {
+      setFileNote(errorText(e));
+    }
+  }
 
   async function submitMilestone(ev: React.FormEvent) {
     ev.preventDefault();
@@ -136,10 +151,17 @@ function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash:
             <input type="date" value={occurredOn} onChange={(e) => setOccurredOn(e.target.value)} required />
           </label>
           {REFERENCE_REQUIRED.includes(milestone) && (
-            <label>
-              Reference (hashed before it leaves the server)
-              <input value={reference} onChange={(e) => setReference(e.target.value)} maxLength={64} required />
-            </label>
+            <>
+              <label>
+                Reference (hashed before it leaves the server)
+                <input value={reference} onChange={(e) => setReference(e.target.value)} maxLength={64} required />
+              </label>
+              <label>
+                Optional: use a file's fingerprint (SHA-256) instead
+                <input type="file" onChange={useFileFingerprint} />
+              </label>
+              {fileNote && <p>{fileNote}</p>}
+            </>
           )}
           {milestone === Milestone.CUSTOMS_STATUS_OBSERVED && (
             <label>
@@ -163,7 +185,7 @@ function Desk({ role, api, onDone }: { role: OrgRole; api: Api; onDone: (sbHash:
   );
 }
 
-function Timeline({ view }: { view: TimelineView }) {
+function Timeline({ view, api }: { view: TimelineView; api: Api }) {
   return (
     <article>
       <p>Shipping bill: {view.record.sb_hash.slice(0, 12)}…</p>
@@ -182,11 +204,12 @@ function Timeline({ view }: { view: TimelineView }) {
       <h3>Cause assessment</h3>
       <p>{causeInWords(view.assessment.bucket)}</p>
       <p>{view.assessment.explanation}</p>
+      <ReferenceCheck api={api} sbHash={view.record.sb_hash} />
     </article>
   );
 }
 
-function TimelinePage({ api, focus }: { api: Api; focus: string }) {
+function TimelinePage({ api, focus, refresh }: { api: Api; focus: string; refresh: Refresh }) {
   const [records, setRecords] = useState<TimelineView[]>([]);
   const [lookup, setLookup] = useState(focus);
   const [found, setFound] = useState<TimelineView | null>(null);
@@ -208,6 +231,15 @@ function TimelinePage({ api, focus }: { api: Api; focus: string }) {
   useEffect(() => {
     api.listRecords().then(setRecords).catch((e) => setError(errorText(e)));
   }, [api]);
+
+  // Live events: reload the list, and the open record if the event touched it.
+  const foundHash = found?.record.sb_hash;
+  useEffect(() => {
+    if (refresh.tick === 0) return;
+    api.listRecords().then(setRecords).catch((e) => setError(errorText(e)));
+    if (foundHash && refresh.hashes.includes(foundHash)) void show(foundHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh.tick]);
 
   // A record just written on a desk opens straight away.
   useEffect(() => {
@@ -243,7 +275,7 @@ function TimelinePage({ api, focus }: { api: Api; focus: string }) {
       </form>
       {error && <p role="alert">{error}</p>}
       {shown.map((v) => (
-        <Timeline key={v.record.sb_hash} view={v} />
+        <Timeline key={v.record.sb_hash} view={v} api={api} />
       ))}
     </section>
   );
@@ -253,12 +285,12 @@ function days(v: number | null) {
   return v === null ? "Not enough data" : `${v} days`;
 }
 
-function MetricsPage({ api }: { api: Api }) {
+function MetricsPage({ api, tick }: { api: Api; tick: number }) {
   const [m, setM] = useState<MetricsSummary | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     api.getMetrics().then(setM).catch((e) => setError(errorText(e)));
-  }, [api]);
+  }, [api, tick]);
   return (
     <section aria-labelledby="metrics-heading">
       <h2 id="metrics-heading">Pilot metrics</h2>
@@ -282,23 +314,58 @@ function MetricsPage({ api }: { api: Api }) {
   );
 }
 
+function eventInWords(e: LedgerEvent) {
+  return `${milestoneInWords(e.event.milestone)} recorded for ${shortHash(e.event.sb_hash)}`;
+}
+
 export function App({ api = realApi }: { api?: Api }) {
   const [view, setView] = useState<View>("bank");
   const [focus, setFocus] = useState("");
   const done = useCallback((sbHash: string) => setFocus(sbHash), []);
+  const [live, setLive] = useState(false);
+  const [lastEvent, setLastEvent] = useState<LedgerEvent | null>(null);
+  const [refresh, setRefresh] = useState<Refresh>({ tick: 0, hashes: [] });
+  const pending = useRef<Set<string>>(new Set());
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // One subscription. Bursts (seeding) collapse into at most one refresh per debounce window.
+  useEffect(() => {
+    const unsubscribe = api.subscribeEvents((e) => {
+      setLastEvent(e);
+      pending.current.add(e.event.sb_hash);
+      if (timer.current) return;
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        const hashes = [...pending.current];
+        pending.current.clear();
+        setRefresh((r) => ({ tick: r.tick + 1, hashes }));
+      }, REFRESH_DEBOUNCE_MS);
+    }, setLive);
+    return () => {
+      unsubscribe();
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+    };
+  }, [api]);
 
   return (
     <main>
       <header>
-        <h1>S14 Receipt Book</h1>
+        <h1>Receipt Book</h1>
         <p>
           Shared milestone record per shipping bill (pilot, synthetic data). Contracts v{CONTRACTS_VERSION}.
         </p>
       </header>
 
+      <p className="live-status" aria-live="polite">
+        {live ? "Live" : "Offline"}
+        {lastEvent && ` · ${eventInWords(lastEvent)}`}
+      </p>
+
       <nav aria-label="Main views">
         <button onClick={() => setView("bank")}>Bank desk</button>
         <button onClick={() => setView("exporters")}>Exporters' desk</button>
+        <button onClick={() => setView("import")}>Customs import</button>
         <button onClick={() => setView("timeline")}>Timeline</button>
         <button onClick={() => setView("metrics")}>Metrics</button>
       </nav>
@@ -315,8 +382,14 @@ export function App({ api = realApi }: { api?: Api }) {
           <Desk role={OrgRole.EXPORTERS_BODY} api={api} onDone={done} />
         </section>
       )}
-      {view === "timeline" && <TimelinePage api={api} focus={focus} />}
-      {view === "metrics" && <MetricsPage api={api} />}
+      {view === "import" && (
+        <section aria-labelledby="import-heading">
+          <h2 id="import-heading">Customs import</h2>
+          <ImportView api={api} />
+        </section>
+      )}
+      {view === "timeline" && <TimelinePage api={api} focus={focus} refresh={refresh} />}
+      {view === "metrics" && <MetricsPage api={api} tick={refresh.tick} />}
     </main>
   );
 }

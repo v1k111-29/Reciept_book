@@ -1,7 +1,7 @@
-# Source this to set the gateway's S14_* variables for the Drunix test network. OWNER: P3.
+# Source this to set the gateway's S14_* variables for the Drunix test network.
 #   source network/gateway-env.sh && (cd gateway && npm run dev)
 # Paths only (no keys in git): cryptogen regenerates the files on every network/up.sh, but their
-# names stay the same. Values tested on 18-21 Oct 2026 (U-02, docs/logs/p3.md).
+# names stay the same. Values tested on 18-21 Oct 2026 (U-02).
 _S14_NET_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 # shellcheck source=/dev/null
 source "$_S14_NET_DIR/env.sh"   # DRUNIX_DIR, S14_CHANNEL, S14_CHAINCODE

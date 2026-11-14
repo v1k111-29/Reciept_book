@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Local guard: blocks pushes that break the branch rules (docs/GIT_WORKFLOW.md). OWNER: P1.
+# Local guard: blocks pushes that break the branch rules (CONTRIBUTING.md).
 # Install once per clone: bash scripts/install-hooks.sh
-# This is a safety net, NOT the enforcement: GitHub branch protection is (REPO_SETUP.md).
-# Never bypass it with --no-verify. If it blocks you wrongly, log it in docs/logs/<id>.md.
+# This is a safety net, NOT the enforcement: GitHub branch protection is (see CONTRIBUTING.md).
+# Never bypass it with --no-verify. If it blocks you wrongly, tell the team lead.
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 # shellcheck disable=SC1091

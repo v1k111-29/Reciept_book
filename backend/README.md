@@ -21,11 +21,45 @@ HTTP status from `ERROR_HTTP_STATUS`.
 | `GET /records/{sb_hash}` | none | `TimelineView` (record plus assessment) |
 | `GET /records` | none | `list[TimelineView]` |
 | `GET /metrics` | none | `MetricsSummary` |
+| `POST /records/{sb_hash}/reference-check` | `ReferenceCheckRequest` | `ReferenceCheckResult` |
+| `POST /customs/import` | `CustomsImportRequest` | `CustomsImportResult` |
+| `GET /events` | none | `text/event-stream` of `LedgerEvent` |
 
 `acting_as` in a `MilestoneRequest` picks which org's gateway identity signs. Record
 creation always uses the AD bank identity (`CREATE_RECORD_ROLE`). Reads use the AD bank
 identity too. The backend does not check `WRITER_ROLE` itself: the chaincode does, and a
 wrong role comes back as `WRONG_ROLE` (403). A bad request body gives `VALIDATION` (422).
+
+## Reference check, Customs import and live events (contracts 1.1.0)
+
+**Reference check.** Reads the record as the AD bank, hashes the raw `reference` with the salt
+and compares it with the `reference_hash` of the record's events for that milestone. It stores
+and logs nothing. `recorded=false` means the milestone is absent. An unknown record gives
+`NOT_FOUND` (404); a blank reference gives `VALIDATION`.
+
+```bash
+curl -X POST http://localhost:8000/records/$SB_HASH/reference-check   -H 'Content-Type: application/json'   -d '{"milestone":"DOCS_ACKNOWLEDGED","reference":"<sha256 of the file>"}'
+```
+
+**Customs import.** Each row becomes a `CUSTOMS_STATUS_OBSERVED` milestone signed as
+`WRITER_ROLE[CUSTOMS_STATUS_OBSERVED]`, in order, with the same bounded MVCC retry and
+`OUTCOME_UNKNOWN` read-back as the milestone route. A row is `RECORDED`, `NOT_FOUND` (no record
+on the book; nothing is created) or `FAILED` (with an `ErrorBody`). One bad row never stops the
+rest. Up to 200 rows.
+
+```bash
+curl -X POST http://localhost:8000/customs/import -H 'Content-Type: application/json'   -d '{"rows":[{"sb_number":"SB-42","port_code":"INMAA1","sb_date":"2026-10-20","customs_status":"PENDING","observed_on":"2026-11-02"}]}'
+```
+
+**Events.** Relays the gateway's `GET /events` server-sent events verbatim, keep-alive comments
+included. If the gateway cannot be reached or does not answer 200 before the stream starts, the
+reply is `LEDGER_UNAVAILABLE` (503). If the upstream breaks mid-stream the response ends quietly
+and the browser's `EventSource` reconnects. The upstream connection is closed when the client
+leaves.
+
+```bash
+curl -N http://localhost:8000/events
+```
 
 ## Hashing
 

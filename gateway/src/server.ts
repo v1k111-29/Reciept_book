@@ -1,12 +1,14 @@
 /**
- * HTTP server. OWNER: P3. Routes must equal contracts GATEWAY_ROUTES.
+ * HTTP server. Routes must equal contracts GATEWAY_ROUTES.
  *   GET  /health   -> HealthResponse
  *   POST /submit   GatewayRequest -> GatewayResult  (CHAINCODE_WRITES only: endorse, order, commit)
  *   POST /evaluate GatewayRequest -> GatewayResult  (every other function: read-only query)
+ *   GET  /events   text/event-stream of LedgerEvent (N4): new MilestoneRecorded events only, keep-alives
  * No business rules here: validate the request shape, forward it to the Ledger, parse the payload
  * and map failures (ledger/errors.ts). Failed responses use ERROR_HTTP_STATUS.
  */
 import { createServer, IncomingMessage, Server, ServerResponse } from "node:http";
+import type { Socket } from "node:net";
 import {
   CHAINCODE_ARGS,
   CHAINCODE_WRITES,
@@ -19,7 +21,8 @@ import {
   type HealthResponse,
 } from "./generated/contracts.js";
 import { errorResult, toErrorResult, type ErrorResponse } from "./ledger/errors.js";
-import { LedgerError, type Ledger } from "./ledger/types.js";
+import { sseMessage, toLedgerEvent } from "./ledger/events.js";
+import { LedgerError, type EventSubscription, type Ledger } from "./ledger/types.js";
 
 export type { Ledger } from "./ledger/types.js";
 
@@ -29,6 +32,15 @@ const ROLES: ReadonlySet<string> = new Set(Object.values(OrgRole));
 const REQUEST_KEYS: ReadonlySet<string> = new Set(["function", "args", "identity"]);
 
 type Route = "submit" | "evaluate";
+
+/** SSE comment sent on connect and then every KEEP_ALIVE_MS on GET /events. */
+export const KEEP_ALIVE_MS = 15_000;
+const KEEP_ALIVE = ": keep-alive\n\n";
+
+export interface ServerOptions {
+  /** Interval of the GET /events keep-alive comment (default KEEP_ALIVE_MS); tests make it short. */
+  keepAliveMs?: number;
+}
 
 function send(res: ServerResponse, status: number, body: GatewayResult | HealthResponse): void {
   res.writeHead(status, { "content-type": "application/json" });
@@ -135,11 +147,75 @@ async function handle(route: Route, raw: string, ledger: Ledger): Promise<ErrorR
   }
 }
 
-export function buildServer(ledger?: Ledger): Server {
-  return createServer(async (req: IncomingMessage, res: ServerResponse) => {
+/** The role the event subscription reads as: AD_BANK, else the first configured one. */
+function eventIdentity(ledger: Ledger): OrgRole | undefined {
+  const roles = [OrgRole.AD_BANK, ...Object.values(OrgRole).filter((r) => r !== OrgRole.AD_BANK)];
+  return roles.find((r) => ledger.hasIdentity(r));
+}
+
+/**
+ * GET /events: one ledger event subscription per client. Client gone -> timer stopped, subscription
+ * closed. Event stream ends or fails -> response ended (the client reconnects; no replay, D-34).
+ */
+function streamEvents(req: IncomingMessage, res: ServerResponse, ledger: Ledger | undefined, keepAliveMs: number, open: Map<Socket, () => void>): void {
+  const identity = ledger?.events ? eventIdentity(ledger) : undefined;
+  if (!ledger?.events || !identity) {
+    const why = !ledger ? "gateway has no ledger configured" : "ledger has no event source";
+    const { status, result } = errorResult(ErrorCode.LEDGER_UNAVAILABLE, why);
+    return send(res, status, result);
+  }
+  let subscription: EventSubscription;
+  try {
+    subscription = ledger.events(identity);
+  } catch (err) {
+    const { status, result } = errorResult(ErrorCode.LEDGER_UNAVAILABLE, `cannot subscribe to ledger events: ${(err as Error)?.message ?? err}`);
+    return send(res, status, result);
+  }
+  const socket = req.socket;
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache, no-transform",
+    connection: "keep-alive",
+    "x-accel-buffering": "no",
+  });
+  res.write(KEEP_ALIVE);
+  const timer = setInterval(() => res.write(KEEP_ALIVE), keepAliveMs);
+  let done = false;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    clearInterval(timer);
+    open.delete(socket);
+    subscription.close();
+  };
+  res.on("close", cleanup);
+  open.set(socket, cleanup);
+  void (async () => {
+    try {
+      for await (const raw of subscription.stream) {
+        if (done) break;
+        const event = toLedgerEvent(raw);
+        if (event) res.write(sseMessage(event));
+      }
+    } catch (err) {
+      if (!done) console.error(`gateway: ledger event stream failed: ${(err as Error)?.message ?? err}`);
+    } finally {
+      cleanup();
+      res.end();
+    }
+  })();
+}
+
+export function buildServer(ledger?: Ledger, options: ServerOptions = {}): Server {
+  const keepAliveMs = options.keepAliveMs ?? KEEP_ALIVE_MS;
+  const eventStreams = new Map<Socket, () => void>();
+  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const path = new URL(req.url ?? "/", "http://gateway").pathname;
     if (req.method === "GET" && path === "/health") {
       return send(res, 200, { status: "ok", contracts_version: CONTRACTS_VERSION });
+    }
+    if (req.method === "GET" && path === "/events") {
+      return streamEvents(req, res, ledger, keepAliveMs, eventStreams);
     }
     if (req.method === "POST" && (path === "/submit" || path === "/evaluate")) {
       let raw: string;
@@ -159,4 +235,16 @@ export function buildServer(ledger?: Ledger): Server {
     const { status, result } = invalid(`no such route: ${req.method} ${path}`);
     return send(res, status, result);
   });
+  // An open event stream never ends by itself, so close() would wait for it forever: close their ledger
+  // subscriptions and drop those sockets first (their clients reconnect elsewhere). Idle keep-alive sockets are closed by close() itself.
+  const close = server.close.bind(server);
+  server.close = (callback?: (err?: Error) => void) => {
+    for (const [socket, cleanup] of eventStreams) {
+      cleanup();
+      socket.destroy();
+    }
+    eventStreams.clear();
+    return close(callback);
+  };
+  return server;
 }

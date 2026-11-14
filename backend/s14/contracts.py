@@ -1,10 +1,9 @@
 """S14 Receipt Book: shared contracts (types every module agrees on).
 
 OWNER: P1 (team lead). Nobody else edits this file.
-FROZEN at 1.0.0 (gate G1, D-20; tag contracts-v1.0.0). Every change follows
-IMPLEMENTATION_PLAN.md section 4.2: a CCR in the requester's log
-(docs/logs/<your-id>.md, "Contract change requests"), the lead's approval, an entry in
-docs/DECISIONS.md, a CONTRACTS_VERSION bump and a regenerated
+Version 1.1.0 (D-34) adds, without changing any 1.0.0 shape: ledger events over SSE,
+bulk import of Customs observations, and the reference (document fingerprint) check.
+Every change needs an entry in docs/DECISIONS.md, a CONTRACTS_VERSION bump and a regenerated
 contracts/contracts.schema.json (run: uv run python scripts/export_schema.py).
 
 What lives here: enums, data shapes, ownership rules (who may write which milestone),
@@ -25,7 +24,7 @@ from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-CONTRACTS_VERSION = "1.0.0"
+CONTRACTS_VERSION = "1.1.0"
 
 # A SHA-256 hex digest: 64 lowercase hex characters.
 HASH_PATTERN = r"^[0-9a-f]{64}$"
@@ -65,6 +64,14 @@ class CauseBucket(StrEnum):
     EXPORTER_LINKAGE_MISSING = "EXPORTER_LINKAGE_MISSING"  # (c) documents never acknowledged
     BANK_NOT_MARKED_OFF = "BANK_NOT_MARKED_OFF"  # (a) payment + docs, but no mark-off
     DOWNSTREAM_SYNC = "DOWNSTREAM_SYNC"  # (b) mark-off signed, Customs still pending
+
+
+class ImportOutcome(StrEnum):
+    """Result of one row of a Customs bulk import (1.1.0)."""
+
+    RECORDED = "RECORDED"  # a CUSTOMS_STATUS_OBSERVED milestone was committed
+    NOT_FOUND = "NOT_FOUND"  # no record on the book for this shipping bill; nothing written
+    FAILED = "FAILED"  # the row was invalid or the write failed; see `error`
 
 
 class ChaincodeFunction(StrEnum):
@@ -376,6 +383,90 @@ class HealthResponse(_Model):
     contracts_version: str
 
 
+# --------------------------------------------------------------- 1.1.0 additions
+
+# Name of the chaincode event emitted by RecordMilestone. Its payload is the MilestoneEvent
+# as JSON. CreateRecord emits no event.
+MILESTONE_RECORDED_EVENT = "MilestoneRecorded"
+
+# Most rows one Customs import request may carry. Each row is one ledger transaction.
+CUSTOMS_IMPORT_MAX_ROWS = 200
+
+
+class LedgerEvent(_Model):
+    """One committed chaincode event, sent as the `data:` line (JSON) of a server-sent event
+    on GATEWAY_ROUTES["events"] and BACKEND_ROUTES["events"]. Carries hashes only."""
+
+    name: Literal["MilestoneRecorded"]
+    block_number: int = Field(ge=0)
+    tx_id: str
+    event: MilestoneEvent
+
+
+class CustomsImportRow(_Model):
+    """One line of a Customs pending/realised list. Raw identifiers; the backend hashes them."""
+
+    sb_number: str = Field(min_length=1, max_length=20)
+    port_code: str = Field(min_length=1, max_length=10)
+    sb_date: date
+    customs_status: CustomsStatus
+    observed_on: date  # the date the list shows this status; becomes occurred_on
+
+
+class CustomsImportRequest(_Model):
+    """Frontend -> backend. The frontend parses the CSV; the backend records each row as a
+    CUSTOMS_STATUS_OBSERVED milestone signed by WRITER_ROLE[CUSTOMS_STATUS_OBSERVED]."""
+
+    rows: tuple[CustomsImportRow, ...] = Field(min_length=1, max_length=CUSTOMS_IMPORT_MAX_ROWS)
+
+
+class CustomsImportRowResult(_Model):
+    row: int = Field(ge=1)  # 1-based position in the request
+    sb_hash: str | None = Field(default=None, pattern=HASH_PATTERN)  # None if hashing failed
+    outcome: ImportOutcome
+    tx_id: str | None = None  # set when outcome is RECORDED
+    error: ErrorBody | None = None  # set when outcome is FAILED
+
+
+class CustomsImportResult(_Model):
+    """Backend -> frontend. Rows are processed in order; one failed row does not stop the rest."""
+
+    total: int = Field(ge=0)
+    recorded: int = Field(ge=0)
+    not_found: int = Field(ge=0)
+    failed: int = Field(ge=0)
+    rows: tuple[CustomsImportRowResult, ...] = ()
+
+
+class ReferenceCheckRequest(_Model):
+    """Frontend -> backend: does this raw reference match what the ledger holds?
+
+    `reference` is the same raw value a MilestoneRequest would carry. For a document, it is the
+    lowercase SHA-256 hex of the file, computed in the browser: the file itself is never
+    uploaded. The backend hashes the reference with the salt and compares; it stores nothing."""
+
+    milestone: Milestone
+    reference: str = Field(min_length=1, max_length=64)
+
+    @model_validator(mode="after")
+    def _check_fields(self) -> ReferenceCheckRequest:
+        if self.milestone not in REFERENCE_REQUIRED:
+            raise ValueError(f"{self.milestone} carries no reference")
+        return self
+
+
+class ReferenceCheckResult(_Model):
+    """`recorded` is False when the record has no such milestone (then `matches` is False).
+    `tx_id` and `ledger_time` are those of the milestone on the ledger, when recorded."""
+
+    sb_hash: str = Field(pattern=HASH_PATTERN)
+    milestone: Milestone
+    recorded: bool
+    matches: bool
+    tx_id: str | None = None
+    ledger_time: AwareDatetime | None = None
+
+
 # ------------------------------------------------------------------- HTTP routes
 
 # Backend routes (P4 implements, P5 calls). Path params in braces.
@@ -386,6 +477,11 @@ BACKEND_ROUTES: dict[str, str] = {
     "get_timeline": "GET /records/{sb_hash}",  # -> TimelineView
     "list_records": "GET /records",  # -> list[TimelineView]
     "metrics": "GET /metrics",  # -> MetricsSummary
+    # 1.1.0
+    "events": "GET /events",  # text/event-stream; each event's data is a LedgerEvent
+    "import_customs": "POST /customs/import",  # CustomsImportRequest -> CustomsImportResult
+    # ReferenceCheckRequest -> ReferenceCheckResult; NOT_FOUND if there is no record
+    "check_reference": "POST /records/{sb_hash}/reference-check",
 }
 
 # Gateway routes (P3 implements, P4 calls).
@@ -393,6 +489,10 @@ GATEWAY_ROUTES: dict[str, str] = {
     "health": "GET /health",  # -> HealthResponse
     "submit": "POST /submit",  # write transactions (endorse + order + commit)
     "evaluate": "POST /evaluate",  # read-only queries
+    # 1.1.0: text/event-stream of committed chaincode events, new ones only (no replay). Each
+    # is "event: MilestoneRecorded" + "data: <LedgerEvent JSON>". Comment lines (": ...") are
+    # keep-alives. LEDGER_UNAVAILABLE (503, GatewayResult body) if no event source is configured.
+    "events": "GET /events",
 }
 
 # Every model exported to contracts/contracts.schema.json for the TypeScript side.
@@ -410,6 +510,13 @@ SCHEMA_MODELS: tuple[type[BaseModel], ...] = (
     GatewayRequest,
     GatewayResult,
     HealthResponse,
+    LedgerEvent,
+    CustomsImportRow,
+    CustomsImportRequest,
+    CustomsImportRowResult,
+    CustomsImportResult,
+    ReferenceCheckRequest,
+    ReferenceCheckResult,
 )
 SCHEMA_ENUMS: tuple[type[StrEnum], ...] = (
     OrgRole,
@@ -418,4 +525,5 @@ SCHEMA_ENUMS: tuple[type[StrEnum], ...] = (
     CauseBucket,
     ChaincodeFunction,
     ErrorCode,
+    ImportOutcome,
 )

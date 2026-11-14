@@ -1,7 +1,7 @@
 # Live: the Drunix test network on a GitHub-hosted Linux runner, then the S14_LIVE=1 suite,
-# the E3 endorsement check and the headless demo seed. OWNER: P1. Decision D-33: the runner
+# the E3 endorsement check and the headless demo seed. Decision D-33: the runner
 # counts as a host machine for G2-G4 evidence when this workflow is green; each step's output
-# is kept as an artifact and quoted in docs/logs/INTEGRATION_LOG.md.
+# is kept as an artifact (the logs that quoted it were removed; see git history).
 # Drunix is pinned to the commit p3 read on 18 Oct 2026 (network/README.md).
 name: live
 on:
@@ -122,7 +122,7 @@ jobs:
           S14_DEMO_CHECK: NODE_PATH=${{ runner.temp }}/pw/node_modules node scripts/ui_smoke.mjs
         run: |
           bash scripts/demo.sh 2>&1 | tee live-demo.log
-          # HOST_RUNBOOK step 4: a fresh network holds exactly the 30 seeded records, 6 per bucket.
+          # docs/RUNBOOK.md step 4: a fresh network holds exactly the 30 seeded records, 6 per bucket.
           grep -q "loaded 30/30" live-demo.log
           python3 -I - live-demo.log <<'PY'
           import ast, re, sys
@@ -152,4 +152,20 @@ jobs:
         if: always()
         run: |
           echo "suite=${{ steps.suite.outcome }} e3=${{ steps.e3.outcome }} demo=${{ steps.demo.outcome }}"
+          # Failure summaries as annotations, so they can be read through the API without the log.
+          note() { # note <title> <text>: one error annotation, newlines kept
+            local text="${2//'%'/%25}"; text="${text//$'\r'/}"; text="${text//$'\n'/%0A}"
+            [ -n "$text" ] && echo "::error title=$1::${text:0:3500}"
+          }
+          if [ "${{ steps.suite.outcome }}" != success ]; then
+            note "live suite" "$(grep -E '^(FAILED|ERROR) |^E  |=+ .*(passed|failed|error)' live-pytest.log 2>/dev/null | tail -40)" || true
+          fi
+          if [ "${{ steps.e3.outcome }}" != success ]; then
+            note "endorsement check" "$(tail -15 live-e3.log 2>/dev/null)" || true
+          fi
+          if [ "${{ steps.demo.outcome }}" != success ]; then
+            note "demo" "$(grep -E 'ui: |loaded [0-9]+/|by cause bucket|demo: |Error|Traceback' live-demo.log 2>/dev/null | tail -25)" || true
+            note "demo backend log" "$(tail -15 .demo-logs/backend.log 2>/dev/null)" || true
+            note "demo gateway log" "$(tail -15 .demo-logs/gateway.log 2>/dev/null)" || true
+          fi
           [ "${{ steps.suite.outcome }}" = success ] && [ "${{ steps.e3.outcome }}" = success ] && [ "${{ steps.demo.outcome }}" = success ]

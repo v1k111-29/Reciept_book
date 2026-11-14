@@ -1,41 +1,43 @@
-# FEATURES.md: essential and non-essential features
+# Features
 
-*Owner: p1. "Essential" means the pilot is not demo-able without it; all ten must pass by
-G3. "Non-essential" work starts only after G3 is declared, in the order listed, and only
-if the lead says so.*
+What Receipt Book 1.0.0 does (contracts 1.1.0), what is planned, and what is out of scope. The
+background is in [docs/PROBLEM.md](docs/PROBLEM.md).
 
-## Essential (E1-E10): must pass by G3
+## Implemented in 1.0.0
 
-| ID | Feature | Owner(s) | Gate | Acceptance (test or evidence) | Why it's essential |
-|---|---|---|---|---|---|
-| **E1** | Create a shipping-bill record keyed by a salted hash | p4 (hash, route), p2 (`CreateRecord`), p3 (submit), p5 (form) | G2 | hashing specs + `CreateRecord` unit test + live round-trip | No record, no pilot |
-| **E2** | Record the five milestones with ownership, order and duplicate rules enforced **on the ledger** | p2 | G1 rules, G3 all five | 9 `rules.spec` cases + per-milestone unit tests + live tests | The ledger is the referee; rules can't live only in the UI |
-| **E3** | Two-org endorsement policy on the real Drunix network | p3 (+p2) | G3 | negative test: single-org endorsement rejected (evidence in log) | It is the main thing Drunix does that a database doesn't (`docs/PROBLEM.md` 6.7) |
-| **E4** | Gateway bridge: backend ↔ Drunix | p3 | G2 | `server.test.ts` routes + live call | Python can't talk to Drunix directly (D-04) |
-| **E5** | Timeline view of one shipping bill (milestones in ledger order, who signed, when) | p4 (`get_timeline`), p5 (view) | G2 | API + view tests | The core user story: "which step is missing, since when" |
-| **E6** | Cause assessment in five buckets (CONSISTENT + four causes) | p4 | G3 | 7 assessment specs | Measures the cause split, the biggest open question (`docs/PROBLEM.md` 4.3) |
-| **E7** | The three pilot measures (docs hand-over → ack; payment → mark-off; share of pending that already had a mark-off) | p4, p5 (view) | G3 | 4 metrics specs + view test | The pilot's first deliverable is measurement (PROBLEM 6.6) |
-| **E8** | Desks: bank desk and exporters' desk only offer the milestones their role may write | p5 | G3 | view tests against `WRITER_ROLE` | Prevents demo errors; shows the role rules |
-| **E9** | Privacy: no raw shipping-bill, IRM or eBRC numbers on the ledger; salt only in env | p4, p2 (VALIDATION) | G2 | hashing specs + chaincode VALIDATION tests + a grep check in the live test | Exporter data protection; our honesty rule |
-| **E10** | CI green + live end-to-end test + synthetic seed data labelled as synthetic | p1 (CI, live), p4 (seed) | G3 | CI badge green; `S14_LIVE=1` suite green; seed command logged | Proves it works on real Drunix, not just in unit tests |
+| ID | Feature | Where the tests live |
+|---|---|---|
+| **E1** | Create a shipping-bill record keyed by a salted hash of port code, shipping-bill number and date | `tests/backend/test_hashing_spec.py`, `tests/backend/test_api.py`, `chaincode/test/receiptBook.test.ts`, `frontend/test/App.test.tsx`, live suite |
+| **E2** | Record the five milestones, with ownership, order and duplicate rules enforced **on the ledger** by the chaincode | `chaincode/test/rules.spec.test.ts`, `chaincode/test/receiptBook.test.ts`, live suite (all five milestones and each rejected write) |
+| **E3** | Two-organisation endorsement policy on the Drunix network: a write endorsed by one organisation alone is rejected | `scripts/e3_endorsement_check.sh` (run in `.github/workflows/live.yml`) |
+| **E4** | Gateway between the Python backend and Drunix, with error mapping and commit-status handling | `gateway/test/` (server, ledger and config tests), live suite |
+| **E5** | Timeline of one shipping bill: milestones in ledger order, who signed, when it was recorded | `tests/backend/test_api.py`, `frontend/test/App.test.tsx` |
+| **E6** | Cause assessment of a Customs "pending" in five buckets (one consistent, four causes) | `tests/backend/test_assessment_spec.py` |
+| **E7** | The three measures: hand-over to acknowledgement, payment to mark-off, share of pending records that already had a mark-off | `tests/backend/test_metrics_spec.py`, `frontend/test/App.test.tsx` |
+| **E8** | Bank desk and exporters' desk offer only the milestones their role may write (`WRITER_ROLE`) | `frontend/test/App.test.tsx` |
+| **E9** | Privacy: no raw shipping-bill, IRM or eBRC numbers on the ledger; the salt only in the environment | `tests/backend/test_hashing_spec.py`, chaincode VALIDATION tests, live test `test_no_raw_identifiers_on_the_ledger` |
+| **E10** | CI on every pull request, a live end-to-end suite on a real Drunix network, and synthetic seed data labelled as synthetic | `.github/workflows/ci.yml`, `.github/workflows/live.yml`, `tests/integration/`, `tests/backend/test_seed.py`, `tests/backend/test_seed_demo.py` |
+| **N4** Live updates | Live UI updates when a milestone commits (server-sent `MilestoneRecorded` events on `GET /events`, gateway and backend; published by the gateway on a VALID commit, D-34) | `gateway/test/ledger.events.test.ts`, `gateway/test/server.events.test.ts`, `tests/backend/test_events.py`, `frontend/test/features.test.tsx` |
+| **N5** Customs import | Bulk import of a Customs pending/realised list from CSV (`POST /customs/import`, at most 200 rows): each row becomes a CUSTOMS_STATUS_OBSERVED milestone; per-row outcome RECORDED, NOT_FOUND or FAILED | `tests/backend/test_customs_import.py`, `frontend/test/features.test.tsx` |
+| **N6** Fingerprint check | Check a document or reference against the hash on the ledger (`POST /records/{sb_hash}/reference-check`). For a file, the browser computes its SHA-256; the file is never uploaded | `tests/backend/test_reference_check.py`, `frontend/test/features.test.tsx` |
 
-## Non-essential (N1-N10): only after G3, in this order
+N4 to N6 follow contracts 1.1.0 (docs/DECISIONS.md D-34). The E and N identifiers are stable;
+code comments cite them.
 
-| ID | Feature | Owner(s) | Depends on | Note |
-|---|---|---|---|---|
-| **N1** | Amounts in a Drunix **private data collection** (bank + exporters' body only) | p2, p3 | E2, E3; U-08 (private data on Drunix) | Strengthens the "why Drunix" answer; the sample network has a private-data example |
-| **N2** | Third org (Bank B) to show competing banks on one ledger | p3, p2 | U-06 (can the test network add an org?) | Makes the multi-bank story real |
-| **N3** | Customs as a read-only org (`CUSTOMS_VIEWER`) | p3, p2, p5 | N2's mechanism | Matches the "read-only later" design |
-| **N4** | Live UI updates from chaincode events (`MilestoneRecorded`) | p3, p5 | E4 | Nice for demo |
-| **N5** | Bulk import of a Customs pending list (CSV) → `CUSTOMS_STATUS_OBSERVED` events | p4, p5 | E6 | Mirrors the Customs drives (public notices with lists) |
-| **N6** | Document fingerprint check: upload a file, compare its hash with the on-ledger `reference_hash` | p4, p5 | E1 | Demonstrates tamper evidence |
-| **N7** | Per-user login mapped to org identities | p4, p3 | E4 | Demo can run with desk switching instead |
-| **N8** | Export a shipping bill's timeline as a PDF "evidence pack" | p5 | E5 | For a Customs officer |
-| **N9** | Reminder when a mark-off is overdue (like Niryatbox's email nudge) | p4 | E7 | A commercial tool already does this off-ledger [S] |
-| **N10** | Measurement of commit latency on our network (internal only, no public claims) | p3 | E3 | Drunix publishes no benchmarks; never claim a number in the pitch |
+## Roadmap (not built)
 
-## Out of scope (do not build)
+| ID | Feature | Open dependency |
+|---|---|---|
+| **N1** | Amounts in a Drunix private data collection, shared only with the bank and the exporters' body | U-08: private data on Drunix needs a live test ([docs/UNKNOWNS.md](docs/UNKNOWNS.md)) |
+| **N2** | A third organisation (a second bank), so competing banks share one ledger; enables the live WRONG_BANK test | U-06: no add-org script in the Drunix test network |
+| **N3** | Customs as a read-only organisation (`CUSTOMS_VIEWER`) | Same mechanism as the third organisation (U-06) |
+| **N7** | Per-user login mapped to organisation identities | The UI currently switches desks instead |
+| **N8** | Export a shipping bill's timeline as a PDF evidence pack | None |
+| **N9** | Reminder when a mark-off is overdue | None; a commercial tool already does this off-ledger ([docs/PROBLEM.md](docs/PROBLEM.md) 5.2) |
+| **N10** | Measure commit latency on a test network, for internal use only | Drunix publishes no benchmarks; no performance claims will be made from it |
 
-- Moving money, tokens, FX, payouts: that's other teams' problem space (`docs/PROBLEM.md` 5.4).
-- Connecting to real EDPMS, DGFT, ICEGATE or bank systems: no access, and not allowed.
-- Any real exporter data. Synthetic only.
+## Out of scope
+
+- Moving money, tokens, foreign exchange or payouts.
+- Connecting to real EDPMS, DGFT, ICEGATE or bank systems.
+- Real exporter data. Demo and seed data are synthetic and labelled so.

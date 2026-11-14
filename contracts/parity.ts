@@ -21,6 +21,8 @@ type Schema = {
   error_http_status: Record<string, number>;
   backend_routes: Record<string, string>;
   gateway_routes: Record<string, string>;
+  milestone_recorded_event: string;
+  customs_import_max_rows: number;
   models: Record<string, { properties: Record<string, unknown> }>;
 };
 
@@ -42,6 +44,7 @@ export function parityProblems(schema: Schema): string[] {
   const enums: Record<string, Record<string, string>> = {
     OrgRole: C.OrgRole, Milestone: C.Milestone, CustomsStatus: C.CustomsStatus,
     CauseBucket: C.CauseBucket, ChaincodeFunction: C.ChaincodeFunction, ErrorCode: C.ErrorCode,
+    ImportOutcome: C.ImportOutcome,
   };
   for (const [name, values] of Object.entries(schema.enums)) {
     eq(`enum ${name}`, enums[name] ? Object.values(enums[name]) : undefined, values);
@@ -59,6 +62,8 @@ export function parityProblems(schema: Schema): string[] {
   eq("error_http_status", C.ERROR_HTTP_STATUS, schema.error_http_status);
   eq("backend_routes", C.BACKEND_ROUTES, schema.backend_routes);
   eq("gateway_routes", C.GATEWAY_ROUTES, schema.gateway_routes);
+  eq("milestone_recorded_event", C.MILESTONE_RECORDED_EVENT, schema.milestone_recorded_event);
+  eq("customs_import_max_rows", C.CUSTOMS_IMPORT_MAX_ROWS, schema.customs_import_max_rows);
   for (const [model, def] of Object.entries(schema.models)) {
     eq(`fields ${model}`, [...(C.MODEL_FIELDS[model] ?? [])].sort(), Object.keys(def.properties).sort());
   }

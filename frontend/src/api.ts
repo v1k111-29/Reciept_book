@@ -2,8 +2,14 @@
  * Typed client for the backend. OWNER: P5. Paths follow contracts BACKEND_ROUTES, under /api.
  * Spec: test/api.spec.test.ts
  */
+import { MILESTONE_RECORDED_EVENT } from "./generated/contracts";
 import type {
   CreateRecordRequest,
+  CustomsImportRequest,
+  CustomsImportResult,
+  LedgerEvent,
+  ReferenceCheckRequest,
+  ReferenceCheckResult,
   ErrorBody,
   ErrorCode,
   MetricsSummary,
@@ -65,11 +71,51 @@ export function getMetrics(): Promise<MetricsSummary> {
   return call("GET", "/metrics");
 }
 
+export function importCustoms(req: CustomsImportRequest): Promise<CustomsImportResult> {
+  return call("POST", "/customs/import", req);
+}
+export function checkReference(sbHash: string, req: ReferenceCheckRequest): Promise<ReferenceCheckResult> {
+  return call("POST", `/records/${encodeURIComponent(sbHash)}/reference-check`, req);
+}
+
+/**
+ * Live ledger events over server-sent events. Returns an unsubscribe. A no-op where EventSource
+ * does not exist. Malformed event data is ignored.
+ */
+export function subscribeEvents(
+  onEvent: (e: LedgerEvent) => void,
+  onStatus?: (live: boolean) => void,
+): () => void {
+  if (typeof EventSource === "undefined") return () => {};
+  const source = new EventSource(`${BASE}/events`);
+  source.onopen = () => onStatus?.(true);
+  source.onerror = () => onStatus?.(false);
+  source.addEventListener(MILESTONE_RECORDED_EVENT, (ev) => {
+    try {
+      const parsed = JSON.parse((ev as MessageEvent).data) as LedgerEvent;
+      if (parsed && typeof parsed === "object" && parsed.event && typeof parsed.event.sb_hash === "string") onEvent(parsed);
+    } catch {
+      /* ignore malformed data */
+    }
+  });
+  return () => source.close();
+}
+
 export interface Api {
   createRecord: typeof createRecord;
   recordMilestone: typeof recordMilestone;
   getTimeline: typeof getTimeline;
   listRecords: typeof listRecords;
   getMetrics: typeof getMetrics;
+  importCustoms: typeof importCustoms;
+  checkReference: typeof checkReference;
+  subscribeEvents: typeof subscribeEvents;
 }
-export const api: Api = { createRecord, recordMilestone, getTimeline, listRecords, getMetrics };
+export const api: Api = { createRecord, recordMilestone,
+  getTimeline,
+  listRecords,
+  getMetrics,
+  importCustoms,
+  checkReference,
+  subscribeEvents,
+};

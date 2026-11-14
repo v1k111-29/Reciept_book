@@ -1,274 +1,141 @@
-# UNKNOWNS.md (owner: p1; each item has an owner who closes it with evidence)
+# Open technical questions
 
-Rule: nobody codes as if an unknown were known. Close an item by writing the evidence
-(command + output, or source link + quote) and the date, then mark it CLOSED.
+Rule: do not code as if an unknown were known. Close an item by recording the evidence (command
+and output, or source link and quote) and the date, then mark it CLOSED. Item numbers are
+stable because code and docs cite them (for example `U-12` in `backend/s14/contracts.py`).
+Numbers missing from the sequence were project-process questions and remain in git history.
 
-| ID | Unknown | Why it matters | Owner | Close by | How to close | Status |
-|---|---|---|---|---|---|---|
-| U-01 | Our challenge code, judging criteria, prototype requirement, official FAQ | Whether "admit a database baseline" is acceptable; what the prototype must show | p1 | G1 | ask the organisers (India Blockchain Forum, per Project Axis's README); get the FAQ | CLOSED 22 Oct 2026 (lead): challenge code, organiser and themes confirmed from the portal; no further leads for judging criteria, prototype requirement or FAQ, which stay [U] |
-| U-02 | Which Drunix peer serves the Fabric Gateway API (lite or committing), and does `@hyperledger/fabric-gateway` 1.13 work with it | The whole gateway design (D-04) | p3 | G1 | connect from the gateway to each peer; log the result | CLOSED 18 Oct 2026 (p3; evidence below) |
-| U-03 | Does Drunix `network.sh deployCC` accept `-ccep` (endorsement policy) and `-ccl typescript` | E3 and deployment | p3 | G1 | read `network.sh` / run it; log | CLOSED 18 Oct 2026 (p3; TypeScript needs the ISS-p3-8 workaround; evidence below) |
-| U-04 | Can the state DB be something other than YugabyteDB (issue #8: non-atomic SQL + Redis writes) | Reliability of commits | p3 | G1 | try the `-s` options; log | SETTLED BY DECISION 18 Oct 2026 (D-23: keep YugabyteDB); other state DBs untested |
-| U-05 | Does a custom channel name (`receiptbook`) work, or only `mychannel` | Scripts and config | p3 | G1 | `network/up.sh`; log | CLOSED 18 Oct 2026 (p3; evidence below) |
-| U-06 | Can a third org be added to the test network (Fabric's `addOrg3` equivalent) | N2, N3 | p3 | after G3 | inspect the test-network folder | OPEN (paper half answered 25 Oct 2026: no add-org script in npci/drunix@8090e0c; see below) |
-| U-07 | Does TypeScript chaincode build and run on Drunix in practice (only Go samples were seen in the repo) | D-02 | p2 + p3 | G1 | deploy the stub chaincode; log | CLOSED 20 Oct 2026 (p2; evidence below) |
-| U-08 | Private data collections on Drunix: the docs mention a KeyDB transient store, but "private data collections" was not on the pages read; the test network has an `asset-transfer-private-data` example | N1 | p2 | after G3 | deploy the sample with `-cccg`; log | OPEN (paper half answered 25 Oct 2026: sample and `-cccg` exist in npci/drunix@8090e0c; see below) |
-| U-09 | GitHub Actions versions (`actions/checkout@v4`, `actions/setup-node@v4`, `astral-sh/setup-uv@v5`) and which push restrictions our repo plan offers | CI and branch protection | p1 | G0 | first CI run; settings screen | CLOSED 24 Oct 2026 (p1; evidence below) |
-| U-10 | Which team member is the lead, and is the lead p1 | D-10 | user | G0 | user confirms | OPEN (note 24 Oct 2026: lead has acted as p1 since D-14; the user's formal confirmation is still pending) |
-| U-11 | Which machine(s) can host Drunix (Linux/WSL2, Docker, RAM for YugabyteDB) | G1 feasibility | p3 + all | G0 | the G0 reports | CLOSED 18 Oct 2026 (p3's MacBook is the host machine; evidence below) |
-| U-12 | What the ledger timestamp proves. In Fabric the transaction timestamp comes from the client's proposal [I, verify]; then `ledger_time` shows when a signed record was submitted, not when the real-world step happened | Honest wording in the pitch and UI | p2 | G2 | Fabric/Drunix docs + test; log | CLOSED 24 Oct 2026 (p2; evidence below; one residual [I]) |
+All Drunix findings below are against npci/drunix commit 8090e0c, built from source, with the
+images `npcioss/drunix-peer|orderer|vscc:1.0.0`.
 
-## Evidence
+| ID | Question | Status |
+|---|---|---|
+| U-02 | Which Drunix peer serves the Fabric Gateway API, and does `@hyperledger/fabric-gateway` 1.13 work with it? | CLOSED: both peer types |
+| U-03 | Does `network.sh deployCC` accept `-ccep` (endorsement policy) and `-ccl typescript`? | CLOSED: yes, with a node-runtime image workaround |
+| U-04 | Can the state DB be something other than YugabyteDB? | SETTLED BY DECISION (D-23): keep YugabyteDB; others untested |
+| U-05 | Does a custom channel name (`receiptbook`) work? | CLOSED: yes |
+| U-06 | Can a third organisation be added to the test network? | OPEN: source read, no live test |
+| U-07 | Does TypeScript chaincode build and run on Drunix? | CLOSED: yes, with the U-03 workaround |
+| U-08 | Do private data collections work on Drunix? | OPEN: source read, no live test |
+| U-09 | Do the GitHub Actions versions in CI work? | CLOSED: yes |
+| U-11 | What machine can host the Drunix test network? | CLOSED: Linux (GitHub-hosted runner, D-33); macOS on Apple Silicon also worked |
+| U-12 | What does the ledger timestamp prove? | CLOSED: submission time, not the real-world step; one residual [I] |
 
-### U-01 (p1, 18 Oct 2026): partial, still OPEN
+## Answers and evidence
 
-Public web search only. Our challenge code, judging criteria and the
-FAQ were **not** found on any public page; they are probably on the login-only portal
-(app.innovationcarnival.io) [I]. Someone registered must read them there and paste the source.
+### U-02: CLOSED (18 Oct 2026)
 
-- Official listing (Internshala, NPCI x Citi): registration 10 to 30 Sep 2026; solutions
-  "should align with the broad pillars of innovation, scalability, and real-world impact";
-  participants are "expected to ideate, collaborate and build working prototypes". No
-  challenge codes, no scoring rubric [P].
-  https://internshala.com/competitions/drunix-hackathon-2026-by-npci-x-citi/
-- Innovation Carnival "current challenges" page: five tracks (AI & Fraud Detection, Real-Time
-  Payments, Financial Inclusion, Cross-Border Remittances, Open Finance APIs). No codes
-  or criteria [P]. https://innovationcarnival.io/current-challenges/
-- Project Axis README (another team): "organised by the India Blockchain Forum"; challenge
-  code CHL-7007 (Cross-Border Remittances). It also cites the hackathon FAQ for a
-  demo flow (Problem, User Journey, Solution, Architecture, Drunix Flow, Working Prototype,
-  Impact) and for IP staying with participants [S]. https://github.com/ferroflux/project-axis
-- Still unknown: our challenge code and track, the judging rubric, and what the prototype
-  must show.
-- 20 Oct 2026: timeline and deadline removed from this item at the lead's request.
+Both peer types serve the Fabric Gateway API. Drunix's own `application-gateway-typescript`
+sample (`@hyperledger/fabric-gateway` 1.13.0, the version `gateway/` uses) ran submit, evaluate,
+async submit with commit status, and an expected error against the Org1 lite peer
+`localhost:7051`, the Org1 committing peer `localhost:7061` and the Org2 lite peer
+`localhost:9051` on channel `receiptbook`. Chaincode always ran on the lite peers. The gateway
+defaults to each org's lite peer; the committing peer is a tested fallback [I: a choice, not a
+measured difference]. A chaincode error arrives in `details[]` as
+`"chaincode response 500, <message>"`, which matches D-21.
 
-### U-01 (p1, 20 Oct 2026, web research): still OPEN
+### U-03: CLOSED (18 Oct 2026)
 
-Public web search and fetch only; no login. None of the four items (challenge code, judging
-criteria, prototype requirement, official FAQ for this hackathon) is confirmed by an official
-organiser or NPCI page. All four remain open.
+`./network.sh deployCC -c receiptbook -ccn basic -ccl typescript -ccep
+"AND('Org1MSP.peer','Org2MSP.peer')"` committed with "Approvals: [Org1MSP: true, Org2MSP:
+true]"; `network.sh` passes `-ccep` on as `--signature-policy`. TypeScript chaincode needs a
+workaround: the peer's node runtime image `npcioss/fabric-nodeenv:2.5` is not published, so the
+deploying machine runs `docker tag hyperledger/fabric-nodeenv:2.5 npcioss/fabric-nodeenv:2.5`
+first. That this image is a correct substitute is [I].
 
-- Organiser site (Innovation Carnival) lists "Drunix Hackathon 2026" as its current challenge:
-  "launched by NPCI", "taken forward in collaboration with Citi". Five tracks only; no
-  challenge codes, no criteria, no dates. Register link goes to the login-only portal
-  https://app.innovationcarnival.io/login. https://innovationcarnival.io/current-challenges/
-- Same site, homepage FAQ: generic to the platform, not this hackathon. On juries: "review
-  assigned submissions, score solutions, provide expert feedback". No rubric, no prototype or
-  IP rule. https://innovationcarnival.io/
-- "Supported By" on that homepage shows logos only; one has alt text "IBF-Logo 3". That IBF
-  is the India Blockchain Forum named in Project Axis's README is [I]; no public page found
-  that links an India Blockchain Forum to this hackathon [U].
-- NPCI: no Drunix hackathon page found on npci.org.in. NPCI's X post announcing the hackathon
-  (https://x.com/NPCI_NPCI/status/2098992005544296488) could not be fetched (HTTP 402) [U].
-- Global Fintech Fest hackathon page lists PSB, SBI, SEBI and NABARD hackathons, not Drunix.
-  https://www.globalfintechfest.com/gff-hackathons
-- Internshala listing (not organiser-run) re-checked: shows status "Closed", format "Online";
-  same pillars quote as 18 Oct; no codes, rubric, prototype rule, FAQ or IP terms [P].
-  https://internshala.com/competitions/drunix-hackathon-2026-by-npci-x-citi/
-- Other teams' repos: nexus-pvp calls itself a "Production-Grade Prototype" submission; no
-  challenge code or rules [S]. https://github.com/Froglodyte/nexus-pvp. Project Axis's
-  CHL-7007 and FAQ citations (18 Oct entry) remain the only source for codes and FAQ, and
-  are not official [S].
-- Remaining: challenge code (and track) for our challenge [U]; judging criteria beyond the
-  "innovation, scalability, real-world impact" pillars [U]; what the prototype must show [U];
-  the official FAQ text [U]. All four are probably on app.innovationcarnival.io behind login
-  [I]; a registered team member must copy them from there.
+### U-04: SETTLED BY DECISION (D-23), not answered
 
-### U-01 (p1, 22 Oct 2026, organiser portal): partly answered, still OPEN
+`-s` only decides whether YugabyteDB starts; the compose files hard-code `sqldb` (YugabyteDB)
+and KeyDB for every peer. Another state DB would mean editing NPCI's compose files. Not tried.
 
-Source: our challenge page on the organiser's login-only portal (app.innovationcarnival.io),
-read by the lead and pasted into the session on 22 Oct 2026. The exact page URL was not recorded
-[U]. This is the first official source for U-01 [P].
+### U-05: CLOSED (18 Oct 2026)
 
-- **Challenge code: CHL-7007**, "Drunix Hackathon in collaboration with Citi", category
-  Blockchain. The code is for the whole hackathon, not one track. This confirms Project Axis's
-  CHL-7007 (18 Oct entry); its "Cross-Border Remittances" label was that team's track, not part
-  of the code.
-- **Organisation: India Blockchain Forum.** This confirms the 20 Oct [I] that the "IBF" logo on
-  innovationcarnival.io is the India Blockchain Forum.
-- **Active stage: Idea / Deck Submission.** Dates left out on purpose (timeline is not tracked
-  in U-01, 20 Oct entry).
-- **Problem statements / themes (five):** Real-Time Payments; Real Asset Tokenization;
-  Cross-Border Remittances; Financial Inclusion; Innovative Fintech Ideas ("New financial
-  technology concepts that improve customer and business outcomes"). This replaces the
-  public site's list, which had "AI & Fraud Detection" and "Open Finance APIs" instead of Real
-  Asset Tokenization and Innovative Fintech Ideas.
-- **Our track: Innovative Fintech Ideas** (lead's choice, D-29).
-- **Format:** the whole hackathon is online (registration, ideation, mentoring, development,
-  submissions, evaluation). The Grand Finale is hybrid: the top 10 finalist teams give a final
-  pitch, live demos and jury evaluation, in person or virtually. The page promises access to
-  NPCI APIs and infrastructure and to Citi mentors.
-- **Still open:** judging criteria / rubric (the page names none) [U]; what the prototype must
-  show (only "live demos" at the finale) [U]; the official FAQ [U]. Next: check the portal's
-  other tabs (rules, FAQ, evaluation) and the deck-submission form.
+`bash network/up.sh` (`./network.sh up createChannel -c receiptbook -s yugabyte`) exited 0:
+"Channel 'receiptbook' created", joined by all four peers, anchor peers set for Org1MSP and
+Org2MSP.
 
-### U-01 (p1, 22 Oct 2026): CLOSED with no further leads
+### U-06: OPEN (source read 25 Oct 2026; nothing run)
 
-The lead closed U-01 on 22 Oct 2026. What is confirmed is in the 22 Oct portal entry above:
-challenge code CHL-7007, organiser India Blockchain Forum, five themes, our theme (D-29) and the
-format. For the other three items there are no further leads to follow: public research (18 and
-20 Oct) found nothing official, and the challenge page names none. They stay [U]:
+Needed for a third organisation (a second bank) and for Customs as a read-only organisation
+(both on the roadmap).
 
-- Judging criteria: work to the public pillars "innovation, scalability, and real-world impact"
-  (Internshala listing, 18 Oct entry) [P, not organiser-run].
-- Prototype requirement: the only official hint is "live demos" at the Grand Finale.
-- Official FAQ: not found. Project Axis's FAQ citations (18 Oct entry) stay [S].
-
-Reopen as a new item if the organisers publish any of these.
-
-### U-02, U-03, U-04, U-05, U-07, U-11 (p3's network sessions, recorded by p1, 20 Oct 2026)
-
-Source for every item: `docs/logs/p3.md`, sessions 2026-10-18 20:44, 22:42 and 22:46 (command
-output quoted there). Drunix commit 8090e0c, built from source; images `npcioss/drunix-*` 1.0.0.
-
-- **U-05 CLOSED.** `bash network/up.sh` (`./network.sh up createChannel -c receiptbook -s yugabyte`)
-  exited 0: "Channel 'receiptbook' created", joined by all four peers, anchor peers set for
-  Org1MSP and Org2MSP.
-- **U-11 CLOSED.** p3's MacBook (macOS, arm64, Docker 29.8.0) is the host machine, with
-  Homebrew bash 5.3, Drunix binaries built with `make`, and the amd64-only Drunix images run
-  under emulation. Setup steps: `network/README.md`. Other members develop against fakes.
-- **U-02 CLOSED.** Both peer types serve the Fabric Gateway API. Drunix's own
-  `application-gateway-typescript` sample (`@hyperledger/fabric-gateway` 1.13.0, the same version
-  as `gateway/`) ran submit, evaluate, async submit with commit status, and an expected error,
-  all OK, against lp1.org1 `localhost:7051`, cp.org1 `localhost:7061` and lp1.org2
-  `localhost:9051` on `receiptbook`. Chaincode always ran on the lite peers. The gateway's
-  default is the lite peer per org; the committing peer is a tested fallback [I: choice, not a
-  measured difference]. A chaincode error arrives in `details[]` as
-  `"chaincode response 500, <message>"`, which matches D-21 (CCR-p3-4a).
-- **U-03 CLOSED.** `./network.sh deployCC -c receiptbook -ccn basic -ccl typescript -ccep
-  "AND('Org1MSP.peer','Org2MSP.peer')"` committed with "Approvals: [Org1MSP: true, Org2MSP:
-  true]"; network.sh passes `-ccep` on as `--signature-policy`. TypeScript needs ISS-p3-8:
-  the peer's node runtime image `npcioss/fabric-nodeenv:2.5` does not exist on Docker Hub, so
-  the deploying machine runs `docker tag hyperledger/fabric-nodeenv:2.5
-  npcioss/fabric-nodeenv:2.5` first. That this image is a correct substitute is [I].
-- **U-04 SETTLED BY DECISION (D-23), not answered.** `-s` only decides whether YugabyteDB starts;
-  the compose files hard-code `sqldb` (YugabyteDB) and KeyDB for every peer. Another state DB
-  would mean editing NPCI's compose files. Not tried.
-- **U-07 CLOSED.** (p2, 20 Oct 2026; source `docs/logs/p2.md`, session 2026-10-20 15:55,
-  P2-G1-T2, REQ-p2-1). p2 deployed our stub chaincode (branch `p2/g1-rules`, `receiptBook.ts`
-  still throws NotImplemented) on a Drunix test network on p2's own Mac (macOS arm64, MacBook
-  Air, Docker Desktop 29.9.1), Drunix 8090e0c built from source, amd64 images
-  `npcioss/drunix-peer|orderer|vscc:1.0.0` under emulation, with the ISS-p3-8 workaround
-  (`docker tag hyperledger/fabric-nodeenv:2.5 npcioss/fabric-nodeenv:2.5`). Commands:
-  `bash network/up.sh` then `bash network/deploy.sh`.
-  - `peer lifecycle chaincode commit ... --name receiptbook --version 1.0 --sequence 1
-    --signature-policy 'AND('Org1MSP.peer','Org2MSP.peer')'` gave "committed with status
-    (VALID)" at localhost:7061 and :9061; querycommitted: "Approvals: [Org1MSP: true, Org2MSP:
-    true]".
-  - `peer chaincode query -C receiptbook -n receiptbook` with
-    `org.hyperledger.fabric:GetMetadata` (Org1 lite peer) returned contract `ReceiptBook` with
-    CreateRecord and RecordMilestone tagged SUBMIT, GetRecord and ListRecords tagged EVALUATE.
-  - `GetRecord` returned `status:500 message:"NotImplemented: P2 G2"`: our own TypeScript code
-    ran on a Drunix peer.
-  - `docker ps`: `dev-peer0.org1.example.com-receiptbook_1.0-…` and `dev-peer0.org2…` Up.
-  - This ran with the ISS-p3-8 node-runtime workaround; without it is untested, and that the
-    substitute image is correct remains [I]. p2 answered REQ-p3-2: keep the workaround for now.
-
-### U-09 (p1, recorded 24 Oct 2026): CLOSED
-
-Source: `docs/logs/p1.md` entries of 18 Oct 2026 (13:45, 14:05, 14:12, 14:25) and 22 Oct 2026
-(ISS-p1-21, branch p1/g1-d28-push-test), `docs/DECISIONS.md` D-16 and D-28, and a read-only check
-by the lead on 24 Oct 2026.
-
-- **Action versions work.** `actions/checkout@v4`, `actions/setup-node@v4` and
-  `astral-sh/setup-uv@v5` ran green on the first CI runs (main 39049689230, develop 39109925150;
-  p1.md 18 Oct 13:45) and are still the versions in `.github/workflows/ci.yml` (lines 28, 29, 43,
-  44). `gh run list` on 24 Oct 2026: latest runs `success` (develop push 23 Oct 05:58 UTC; PR #54
-  and PR #55).
-- **Push restrictions the plan offers.** Personal account, Free plan: GitHub's API answers HTTP 403
-  "Upgrade to GitHub Pro or make this repository public to enable this feature." for rulesets and
-  branch protection while the repo is private (p1.md 18 Oct 14:05). Once the repo was public, the
-  rulesets API worked and `protect-develop` (Repository-admin bypass, pull requests only, five
-  required checks) was created (p1.md 18 Oct 14:12 and 14:25). A personal-account repo has no
-  "restrict who can push" and no admin role for collaborators (p1.md 18 Oct 13:45).
-- **Current state (24 Oct 2026).** `gh api repos/v1k111-29/drunix-hackathon`: `visibility` private,
-  owner type `User`. `GET .../rulesets` returns the same 403. `GET .../branches/develop` reports
-  `protected: false`. So GitHub enforces nothing on `develop`; the pre-push hook is the only guard
-  (ISS-p1-21, D-28). D-16 had assumed the repo stays public; when and by whom it became private again
-  is [U] (as recorded in ISS-p1-21).
-- **Residual [I]:** that GitHub Pro or a public repo would turn the rulesets back on comes from
-  GitHub's own 403 message and the 18 Oct public-repo result; not retried on 24 Oct.
-
-### U-12 (p2, 23 Oct 2026; recorded by p1, 24 Oct 2026): CLOSED, one residual [I]
-
-Source: `docs/logs/p2.md`, entry 2026-10-23 00:42 (P2-G2-T1 deploy + U-12), request REQ-p2-3, plus
-p2's 2026-10-20 15:24 entry (fabric-shim source). PR #51 (p2/g2-chaincode) merged 23 Oct 2026
-05:58 UTC. Drunix network on p2's Mac, our chaincode deployed with `network/deploy.sh`, calls with
-the `peer` CLI endorsed by both lite peers.
-
-- **Source reading (2026-10-20 15:24).** fabric-shim 2.5.8 `lib/stub.js`, `getDateTimestamp()`:
-  "This is taken from the transaction ChannelHeader, therefore it will indicate the client's date,
-  and will have the same value across all endorsers." Our chaincode stores `ctx.stub.getTxTimestamp()`
-  as `ledger_time` (UTC ISO 8601 with `Z`).
-- **Live comparison (2026-10-23 00:42).** Block header `channel_header.timestamp` (set by the
-  submitting client) against what the chaincode stored, same tx_id:
-  - block 6 `19:07:16.437428Z` vs `created_ledger_time` `2026-10-22T19:07:16.437Z`
-  - block 7 `19:07:46.841600Z` vs `ledger_time` `19:07:46.841Z`
-  - block 8 `19:08:17.221975Z` vs `ledger_time` `19:08:17.221Z`
-  The client clock read just before each invoke was `.387` and `.794`, so the header time is set
-  when the client builds the proposal (about 50 ms later), not at commit (each CLI call then waited
-  30 s).
-- **Answer.** `ledger_time` is the submitting client's clock when it built the signed proposal,
-  unchanged by the Drunix peers and truncated to milliseconds. It shows when a signed record was
-  submitted, not when the real-world step happened; that is `occurred_on`, attested by the
-  submitter. A client with a wrong clock puts a wrong time on the ledger. UI and pitch wording must
-  say "submitted at", not "happened at".
-- **Residual [I]:** whether Drunix rejects a proposal whose client clock is far off (a clock-skew
-  check) was not tested.
-
-### U-06 (p1, 25 Oct 2026, source read): still OPEN, paper half answered
-
-Source: public npci/drunix at commit 8090e0c (`main`, 17 Oct 2026, the commit our network runs,
-`docs/logs/p3.md`). Full git tree read through the GitHub API; files read from
-raw.githubusercontent.com. Nothing was run.
-
-- **No add-org script.** No path under `drunix-network/` contains `addOrg` or `org3`.
-  `drunix-network/` holds only `asset-transfer-basic`, `asset-transfer-private-data`, `config` and
-  `test-network` (https://github.com/npci/drunix/tree/8090e0ce58802c8a0f13d23a6abe5a2d35456cc5/drunix-network).
-- **Only leftovers of Fabric's addOrg3 remain**, as comments or dead code:
-  `test-network/scripts/envVar.sh` (a comment naming "test-network/addOrg3", and an org-3 branch
-  with its exports commented out), `scripts/setAnchorPeer.sh` and `scripts/configUpdate.sh`
-  (comments on "org3-scripts"). That addOrg3 was once present and removed is [I]; git history was
-  not searched.
-- **Org1 and Org2 are hard-coded** in `configtx/configtx.yaml` (channel profile), `createChannel.sh`
-  (joins and anchor peers), `deployCC.sh` (installs), `envVar.sh` (`setGlobals`) and `network.sh`
-  (crypto, connection profiles, `down` cleanup).
-- **One Drunix org needs five containers.** From `compose/compose-test-net.yaml` and
-  `scripts/yugabyte/compose.yaml`: a lite peer (`CORE_PEER_LITEPEER_ENABLED=true`), a committing
-  peer, a validation server (`npcioss/drunix-vscc`), a YugabyteDB container and a KeyDB container.
-- **What a third org would take [I]:** bring the network up with three orgs from the start, which
-  avoids a channel config update. That needs an org3 crypto-config, an `Org3` block in
-  configtx.yaml, five more compose services with new ports, and org-3 cases in envVar.sh,
-  createChannel.sh, setAnchorPeer.sh, deployCC.sh/ccutils.sh and network.sh. These are NPCI's
-  files, so our `network/` folder would carry a patch or overlay. Adding Org3 to a running channel
-  instead needs Fabric 2.5's config-update flow; that it works unchanged on Drunix is [I] (root
-  README: "Backwards compatible with HLF v2.5.x").
+- **No add-org script.** No path under `drunix-network/` contains `addOrg` or `org3`. It holds
+  only `asset-transfer-basic`, `asset-transfer-private-data`, `config` and `test-network`
+  (https://github.com/npci/drunix/tree/8090e0ce58802c8a0f13d23a6abe5a2d35456cc5/drunix-network).
+- **Only leftovers of Fabric's addOrg3 remain**, as comments or dead code in
+  `test-network/scripts/envVar.sh`, `scripts/setAnchorPeer.sh` and `scripts/configUpdate.sh`.
+- **Org1 and Org2 are hard-coded** in `configtx/configtx.yaml`, `createChannel.sh`,
+  `deployCC.sh`, `envVar.sh` and `network.sh`.
+- **One Drunix org needs five containers:** a lite peer, a committing peer, a validation server
+  (`npcioss/drunix-vscc`), a YugabyteDB container and a KeyDB container.
+- **What a third org would take [I]:** bring the network up with three orgs from the start (an
+  org3 crypto-config, an `Org3` block in configtx.yaml, five more compose services with new
+  ports, and org-3 cases in the scripts above). These are NPCI's files, so this repository would
+  carry a patch or overlay. Adding Org3 to a running channel instead needs Fabric 2.5's
+  config-update flow; that it works unchanged on Drunix is [I].
 - **Still [U], needs a live test:** whether a three-org network comes up, whether the Drunix peer
-  accepts an MSP added by config update, and whether the host has the resources (U-11).
+  accepts an MSP added by config update, and whether a host has the resources.
 
-### U-08 (p1, 25 Oct 2026, source read): still OPEN, paper half answered
+### U-07: CLOSED (20 Oct 2026)
 
-Source: npci/drunix at commit 8090e0c, as for U-06.
+The stub chaincode, then the real one, deployed with `bash network/up.sh` and
+`bash network/deploy.sh` (with the U-03 workaround). `peer lifecycle chaincode commit ... --name
+receiptbook --signature-policy "AND('Org1MSP.peer','Org2MSP.peer')"` gave "committed with status
+(VALID)"; `querycommitted` showed "Approvals: [Org1MSP: true, Org2MSP: true]". `GetMetadata`
+returned contract `ReceiptBook` with CreateRecord and RecordMilestone tagged SUBMIT and GetRecord
+and ListRecords tagged EVALUATE, and a call ran our TypeScript code on a Drunix peer. Without the
+node-runtime workaround is untested.
 
-- **The sample exists:** `drunix-network/asset-transfer-private-data/`, Go chaincode only
-  (`chaincode-go/`, with `collections_config.json`) and Go and TypeScript gateway apps. Its README
-  also names Java and TypeScript chaincode folders, which are not in the tree
+### U-08: OPEN (source read 25 Oct 2026; nothing run)
+
+Needed for amounts in a private data collection (roadmap).
+
+- **The sample exists:** `drunix-network/asset-transfer-private-data/`, Go chaincode only, with
+  `collections_config.json`
   (https://github.com/npci/drunix/tree/8090e0ce58802c8a0f13d23a6abe5a2d35456cc5/drunix-network/asset-transfer-private-data).
-- **`-cccg` is supported:** `test-network/network.sh` reads `-cccg` into `CC_COLL_CONFIG` and
-  passes it to `scripts/deployCC.sh`, which turns it into `--collections-config`. `scripts/ccutils.sh`
-  adds it to `approveformyorg`, `checkcommitreadiness` and `commit`. `test-network/README.md`
-  lists the flag under "Common deploy flags".
-- **Design:** https://github.com/npci/drunix/blob/8090e0ce58802c8a0f13d23a6abe5a2d35456cc5/docs/drunix-arch.md ("Private Data Management", "Private Data Retrieval") says the
-  lite peer stores private data in the per-org KeyDB transient store and disseminates it to
-  eligible peers in other orgs; the committing peer reads the transient store first. The compose
-  file wires `CORE_PEER_KVSTORE_ENABLED=true` and `CORE_PEER_KVSTORE_ADDRESS=hlf_keydb_org1msp:6379`
-  on the lite peer. This corrects the row: private data is covered in `docs/drunix-arch.md`.
-- **Still [U], needs a live test:** whether private data works end to end with lite peers that run
-  with gossip state off (the sample's `assetCollection` has `requiredPeerCount: 1`), whether the
-  sample's CouchDB index folder matters on YugabyteDB, how Org2 receives Org1's private data, and
-  whether `putPrivateData` from our TypeScript chaincode works on Drunix (N1 needs that).
-- **Live test to run (after G3, per FEATURES.md):** `network.sh deployCC -c receiptbook -ccn private
+- **`-cccg` is supported:** `network.sh` passes it to `deployCC.sh` as `--collections-config`,
+  and `ccutils.sh` adds it to approve, commit-readiness check and commit.
+- **Design:** Drunix's `docs/drunix-arch.md` ("Private Data Management", "Private Data
+  Retrieval") says the lite peer stores private data in the per-org KeyDB transient store and
+  disseminates it to eligible peers in other orgs; the committing peer reads the transient store
+  first
+  (https://github.com/npci/drunix/blob/8090e0ce58802c8a0f13d23a6abe5a2d35456cc5/docs/drunix-arch.md).
+- **Still [U], needs a live test:** whether private data works end to end with lite peers that
+  run with gossip state off, whether the sample's CouchDB index folder matters on YugabyteDB, how
+  Org2 receives Org1's private data, and whether `putPrivateData` from TypeScript chaincode works
+  on Drunix.
+- **Live test to run:** from `test-network`, `./network.sh deployCC -c receiptbook -ccn private
   -ccp ../asset-transfer-private-data/chaincode-go -ccl go -cccg
   ../asset-transfer-private-data/chaincode-go/collections_config.json -ccep
   "OR('Org1MSP.peer','Org2MSP.peer')"`. Check `querycommitted` shows the collections, then write
   and read from each org.
+
+### U-09: CLOSED (24 Oct 2026)
+
+`actions/checkout@v4`, `actions/setup-node@v4` and `astral-sh/setup-uv@v5` run green in
+`.github/workflows/ci.yml`. `live.yml` also uses `actions/setup-go@v5` and
+`actions/upload-artifact@v4`.
+
+### U-11: CLOSED
+
+The Drunix test network is documented for Linux with git, Docker (`network.sh` says <= 28), Go,
+jq and Bash 4+. Live verification runs on a GitHub-hosted Ubuntu runner (D-33). macOS on Apple
+Silicon also ran it, with the amd64 images under emulation and Docker 29.8.0; see
+[`network/README.md`](../network/README.md).
+
+### U-12: CLOSED (23 Oct 2026), one residual [I]
+
+- **Source reading.** fabric-shim 2.5.8 `lib/stub.js`, `getDateTimestamp()`: "This is taken
+  from the transaction ChannelHeader, therefore it will indicate the client's date, and will have
+  the same value across all endorsers." The chaincode stores `ctx.stub.getTxTimestamp()` as
+  `ledger_time` (UTC ISO 8601 with `Z`).
+- **Live comparison.** The block header `channel_header.timestamp` matched the stored
+  `ledger_time` to the millisecond for three transactions, and was set when the client built the
+  proposal (about 50 ms after the client clock read), not at commit.
+- **Answer.** `ledger_time` is the submitting client's clock when it built the signed proposal,
+  unchanged by the Drunix peers and truncated to milliseconds. It shows when a signed record was
+  submitted, not when the real-world step happened; that is `occurred_on`, attested by the
+  submitter. A client with a wrong clock puts a wrong time on the ledger. Wording in the UI and
+  docs should say "recorded" or "submitted", never "happened".
+- **Residual [I]:** whether Drunix rejects a proposal whose client clock is far off (a clock-skew
+  check) was not tested.
