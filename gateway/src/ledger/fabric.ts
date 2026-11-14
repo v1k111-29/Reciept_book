@@ -8,10 +8,21 @@
 import { createPrivateKey } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import * as grpc from "@grpc/grpc-js";
-import { connect, hash, signers, StatusCode, type Commit, type Contract, type Gateway } from "@hyperledger/fabric-gateway";
+import {
+  connect,
+  hash,
+  signers,
+  StatusCode,
+  type ChaincodeEvent,
+  type CloseableAsyncIterable,
+  type Commit,
+  type Contract,
+  type Gateway,
+  type Network,
+} from "@hyperledger/fabric-gateway";
 import type { GatewayConfig, IdentityConfig } from "../config.js";
 import type { ChaincodeFunction, OrgRole } from "../generated/contracts.js";
-import { LedgerError, type Ledger, type LedgerFailure } from "./types.js";
+import { LedgerError, type ChaincodeEventLike, type EventSubscription, type Ledger, type LedgerFailure } from "./types.js";
 
 /**
  * gRPC deadlines in ms. The submit path (endorse + submit + commit status = 9 s) stays under the 10 s
@@ -190,6 +201,39 @@ export async function evaluateVia(contract: ContractLike, fn: string, args: stri
   }
 }
 
+type NetworkLike = Pick<Network, "getChaincodeEvents">;
+
+/**
+ * Chaincode events of `chaincode` committed from now on (N4). No startBlock or checkpoint is passed, so the
+ * SDK asks the peer for SeekNextCommit: the next committed block onward, no replay (fabric-gateway 1.13.0,
+ * dist/eventsbuilder.js). getChaincodeEvents is async, so the stream opens the session when first read;
+ * close() before that means the session is closed as soon as it opens and the stream ends at once.
+ */
+export function subscribeVia(network: NetworkLike, chaincode: string): EventSubscription {
+  let closed = false;
+  let events: CloseableAsyncIterable<ChaincodeEvent> | undefined;
+  async function* stream(): AsyncGenerator<ChaincodeEventLike> {
+    const opened = await network.getChaincodeEvents(chaincode);
+    events = opened;
+    try {
+      if (closed) return;
+      for await (const ev of opened) {
+        if (closed) return;
+        yield ev;
+      }
+    } finally {
+      opened.close();
+    }
+  }
+  return {
+    stream: stream(),
+    close() {
+      closed = true;
+      events?.close();
+    },
+  };
+}
+
 async function read(path: string, what: string): Promise<Buffer> {
   try {
     return await readFile(path);
@@ -202,6 +246,7 @@ interface Connection {
   mspId: string;
   client: grpc.Client;
   gateway: Gateway;
+  network: Network;
   contract: Contract;
 }
 
@@ -216,7 +261,10 @@ export function otherOrgRoles(identities: Partial<Record<OrgRole, { mspId: strin
 }
 
 export class FabricLedger implements Ledger {
-  private constructor(private readonly connections: Map<OrgRole, Connection>) {}
+  private constructor(
+    private readonly connections: Map<OrgRole, Connection>,
+    private readonly chaincode: string,
+  ) {}
 
   /** One gRPC client + Gateway per configured role. Reads the cert/key files now; connects lazily. */
   static async connect(config: GatewayConfig): Promise<FabricLedger> {
@@ -244,10 +292,11 @@ export class FabricLedger implements Ledger {
         submitOptions: deadline(DEADLINES_MS.submit),
         commitStatusOptions: deadline(DEADLINES_MS.commitStatus),
       });
-      const contract = gateway.getNetwork(config.channel).getContract(config.chaincode);
-      connections.set(role, { mspId: id.mspId, client, gateway, contract });
+      const network = gateway.getNetwork(config.channel);
+      const contract = network.getContract(config.chaincode);
+      connections.set(role, { mspId: id.mspId, client, gateway, network, contract });
     }
-    return new FabricLedger(connections);
+    return new FabricLedger(connections, config.chaincode);
   }
 
   hasIdentity(identity: OrgRole): boolean {
@@ -265,6 +314,13 @@ export class FabricLedger implements Ledger {
 
   evaluate(fn: ChaincodeFunction, args: string[], identity: OrgRole): Promise<string> {
     return evaluateVia(this.contract(identity), fn, args);
+  }
+
+  /** Chaincode events from the next committed block on, read as `identity` (GET /events). */
+  events(identity: OrgRole): EventSubscription {
+    const connection = this.connections.get(identity);
+    if (!connection) throw new Error(`no ledger connection for ${identity}`);
+    return subscribeVia(connection.network, this.chaincode);
   }
 
   close(): void {

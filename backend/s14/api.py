@@ -1,7 +1,8 @@
 """FastAPI app. Owner: P4. Routes must match contracts.BACKEND_ROUTES.
 
 Run locally: uv run uvicorn s14.api:app --app-dir backend --port 8000
-All routes in contracts.BACKEND_ROUTES are implemented.
+All routes in contracts.BACKEND_ROUTES are implemented (1.1.0 adds the reference check, the
+Customs bulk import and the /events relay).
 
 Write routes retry a failed submit only when its error code is in RETRYABLE_ERRORS
 (MVCC_CONFLICT), up to MVCC_MAX_ATTEMPTS attempts in total with a fixed backoff. They never
@@ -16,7 +17,7 @@ import time
 
 from fastapi import Depends, FastAPI, Path, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import TypeAdapter, ValidationError
 
 from s14.contracts import (
@@ -25,18 +26,25 @@ from s14.contracts import (
     ERROR_HTTP_STATUS,
     HASH_PATTERN,
     ChaincodeFunction,
+    WRITER_ROLE,
     CreateRecordRequest,
+    CustomsImportRequest,
+    CustomsImportResult,
+    CustomsImportRowResult,
     ErrorBody,
     ErrorCode,
     GatewayRequest,
     GatewayResult,
     HealthResponse,
+    ImportOutcome,
     MetricsSummary,
     Milestone,
     OrgRole,
     MilestoneRequest,
     MilestoneSubmission,
     RETRYABLE_ERRORS,
+    ReferenceCheckRequest,
+    ReferenceCheckResult,
     ShippingBillRecord,
     TimelineView,
     TxReceipt,
@@ -49,7 +57,7 @@ from s14.domain.hashing import (
     validate_reference,
     validate_shipping_bill_identifiers,
 )
-from s14.gateway_client import Gateway, HttpGateway
+from s14.gateway_client import Gateway, GatewayUnavailable, HttpGateway
 
 app = FastAPI(title="S14 Receipt Book API", version="0.1.0")
 _RECORDS_ADAPTER = TypeAdapter(list[ShippingBillRecord])
@@ -157,6 +165,37 @@ def _hash_salt() -> str | JSONResponse:
     return salt
 
 
+def _submit_milestone(gateway: Gateway, submission: MilestoneSubmission, identity: OrgRole) -> GatewayResult:
+    """Submit one RecordMilestone (bounded MVCC retry). Returns an ok result that always carries
+    a tx_id, or a failed one. OUTCOME_UNKNOWN counts as success only if the record read back
+    holds an event with the same tx_id and milestone."""
+    result, _attempts = _submit(
+        gateway,
+        GatewayRequest(
+            function=ChaincodeFunction.RECORD_MILESTONE,
+            args=(json.dumps(submission.model_dump(mode="json", exclude_none=True), separators=(",", ":")),),
+            identity=identity,
+        ),
+    )
+    if not result.ok:
+        if (
+            result.error is not None
+            and result.error.code is ErrorCode.OUTCOME_UNKNOWN
+            and result.tx_id is not None
+            and _unknown_write_committed(gateway, submission.sb_hash, result, submission.milestone)
+        ):
+            return GatewayResult(ok=True, tx_id=result.tx_id)
+        return result
+    if result.tx_id is None:
+        return GatewayResult(
+            ok=False,
+            error=ErrorBody(
+                code=ErrorCode.INTERNAL, message="Gateway returned a successful write without a transaction ID."
+            ),
+        )
+    return result
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok", contracts_version=CONTRACTS_VERSION)
@@ -229,28 +268,136 @@ def record_milestone(
         customs_status=request.customs_status,
     )
 
-    result, _attempts = _submit(
-        gateway,
-        GatewayRequest(
-            function=ChaincodeFunction.RECORD_MILESTONE,
-            args=(json.dumps(submission.model_dump(mode="json", exclude_none=True), separators=(",", ":")),),
-            identity=request.acting_as,
-        ),
+    result = _submit_milestone(gateway, submission, request.acting_as)
+    if not result.ok:
+        return _gateway_error(result)
+    assert result.tx_id is not None
+    return TxReceipt(sb_hash=sb_hash, tx_id=result.tx_id)
+
+
+@app.post("/records/{sb_hash}/reference-check", response_model=ReferenceCheckResult)
+def check_reference(
+    request: ReferenceCheckRequest,
+    sb_hash: str = Path(pattern=HASH_PATTERN),
+    gateway: Gateway = Depends(get_gateway),
+) -> ReferenceCheckResult | JSONResponse:
+    try:
+        validate_reference(request.reference)
+    except ValueError as exc:
+        return _error_response(ErrorBody(code=ErrorCode.VALIDATION, message=str(exc)))
+
+    salt = _hash_salt()
+    if isinstance(salt, JSONResponse):
+        return salt
+
+    result = gateway.evaluate(
+        GatewayRequest(function=ChaincodeFunction.GET_RECORD, args=(sb_hash,), identity=OrgRole.AD_BANK)
     )
     if not result.ok:
-        if (
-            result.error is not None
-            and result.error.code is ErrorCode.OUTCOME_UNKNOWN
-            and result.tx_id is not None
-            and _unknown_write_committed(gateway, sb_hash, result, request.milestone)
-        ):
-            return TxReceipt(sb_hash=sb_hash, tx_id=result.tx_id)
         return _gateway_error(result)
-    if result.tx_id is None:
+    try:
+        record = ShippingBillRecord.model_validate(result.payload)
+    except ValidationError:
         return _error_response(
-            ErrorBody(code=ErrorCode.INTERNAL, message="Gateway returned a successful write without a transaction ID.")
+            ErrorBody(code=ErrorCode.INTERNAL, message="Gateway returned an invalid shipping-bill record.")
         )
-    return TxReceipt(sb_hash=sb_hash, tx_id=result.tx_id)
+
+    events = [e for e in record.events if e.milestone is request.milestone]
+    if not events:
+        return ReferenceCheckResult(sb_hash=sb_hash, milestone=request.milestone, recorded=False, matches=False)
+    wanted = reference_hash(request.reference, salt)
+    matching = [e for e in events if e.reference_hash == wanted]
+    chosen = matching[0] if matching else max(events, key=lambda e: e.ledger_time)
+    return ReferenceCheckResult(
+        sb_hash=sb_hash,
+        milestone=request.milestone,
+        recorded=True,
+        matches=bool(matching),
+        tx_id=chosen.tx_id,
+        ledger_time=chosen.ledger_time,
+    )
+
+
+@app.post("/customs/import", response_model=CustomsImportResult)
+def import_customs(
+    request: CustomsImportRequest,
+    gateway: Gateway = Depends(get_gateway),
+) -> CustomsImportResult | JSONResponse:
+    salt = _hash_salt()
+    if isinstance(salt, JSONResponse):
+        return salt
+
+    rows: list[CustomsImportRowResult] = []
+    for number, row in enumerate(request.rows, start=1):
+        try:
+            validate_shipping_bill_identifiers(row.sb_number, row.port_code)
+            row_hash = shipping_bill_hash(row.sb_number, row.port_code, row.sb_date, salt)
+        except ValueError as exc:
+            rows.append(
+                CustomsImportRowResult(
+                    row=number,
+                    outcome=ImportOutcome.FAILED,
+                    error=ErrorBody(code=ErrorCode.VALIDATION, message=str(exc)),
+                )
+            )
+            continue
+        result = _submit_milestone(
+            gateway,
+            MilestoneSubmission(
+                sb_hash=row_hash,
+                milestone=Milestone.CUSTOMS_STATUS_OBSERVED,
+                occurred_on=row.observed_on,
+                customs_status=row.customs_status,
+            ),
+            WRITER_ROLE[Milestone.CUSTOMS_STATUS_OBSERVED],
+        )
+        if result.ok:
+            rows.append(
+                CustomsImportRowResult(
+                    row=number, sb_hash=row_hash, outcome=ImportOutcome.RECORDED, tx_id=result.tx_id
+                )
+            )
+        elif result.error is not None and result.error.code is ErrorCode.NOT_FOUND:
+            rows.append(CustomsImportRowResult(row=number, sb_hash=row_hash, outcome=ImportOutcome.NOT_FOUND))
+        else:
+            rows.append(
+                CustomsImportRowResult(
+                    row=number, sb_hash=row_hash, outcome=ImportOutcome.FAILED, error=result.error
+                )
+            )
+
+    def count(outcome: ImportOutcome) -> int:
+        return sum(1 for r in rows if r.outcome is outcome)
+
+    return CustomsImportResult(
+        total=len(rows),
+        recorded=count(ImportOutcome.RECORDED),
+        not_found=count(ImportOutcome.NOT_FOUND),
+        failed=count(ImportOutcome.FAILED),
+        rows=tuple(rows),
+    )
+
+
+@app.get("/events", response_model=None)
+def events(gateway: Gateway = Depends(get_gateway)) -> StreamingResponse | JSONResponse:
+    """Relay the gateway's server-sent events verbatim (keep-alive comments included)."""
+    try:
+        stream = gateway.open_events()
+    except GatewayUnavailable as exc:
+        return _error_response(ErrorBody(code=ErrorCode.LEDGER_UNAVAILABLE, message=str(exc)))
+
+    def relay():
+        # Sync generator: Starlette runs it in a threadpool, so it blocks no other request.
+        try:
+            yield from stream
+        finally:
+            stream.close()  # also runs when the client disconnects and the generator is closed
+
+    return StreamingResponse(
+        relay(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/records/{sb_hash}", response_model=TimelineView)

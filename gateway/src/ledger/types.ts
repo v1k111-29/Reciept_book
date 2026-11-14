@@ -15,6 +15,26 @@ export interface Ledger {
   submit(fn: ChaincodeFunction, args: string[], identity: OrgRole): Promise<{ txId: string; result: string }>;
   /** Read-only query; nothing is committed. Returns the chaincode's raw UTF-8 response. */
   evaluate(fn: ChaincodeFunction, args: string[], identity: OrgRole): Promise<string>;
+  /**
+   * Optional (N4, GET /events): subscribe, as `identity`, to chaincode events committed from now on
+   * (no replay). `stream` ends or throws when the subscription ends; `close()` stops it. A Ledger
+   * without this method has no event source, and GET /events answers LEDGER_UNAVAILABLE.
+   */
+  events?(identity: OrgRole): EventSubscription;
+}
+
+/** One committed chaincode event, as Fabric reports it (fields of the SDK's ChaincodeEvent). */
+export interface ChaincodeEventLike {
+  blockNumber: bigint | number;
+  transactionId: string;
+  eventName: string;
+  /** The event payload: UTF-8 JSON bytes. */
+  payload: Uint8Array;
+}
+
+export interface EventSubscription {
+  stream: AsyncIterable<ChaincodeEventLike>;
+  close(): void;
 }
 
 export type LedgerFailure =

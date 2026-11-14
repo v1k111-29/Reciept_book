@@ -8,6 +8,7 @@ Unit tests use FakeGateway (tests/backend/fakes.py) instead of a network.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from typing import Protocol
 
 import httpx
@@ -32,9 +33,43 @@ _RESULT_VALIDATORS: dict[str, TypeAdapter[object]] = {
 }
 
 
+class GatewayUnavailable(Exception):
+    """The gateway could not be reached, or refused to start an event stream."""
+
+
+class EventStream(Protocol):
+    """An open server-sent-event stream from the gateway: iterate raw bytes, then close()."""
+
+    def __iter__(self) -> Iterator[bytes]: ...
+    def close(self) -> None: ...
+
+
 class Gateway(Protocol):
     def submit(self, request: GatewayRequest) -> GatewayResult: ...
     def evaluate(self, request: GatewayRequest) -> GatewayResult: ...
+    def open_events(self) -> EventStream:
+        """Open GATEWAY_ROUTES["events"]. Raises GatewayUnavailable if it cannot be reached or
+        does not answer 200. Iterating yields the stream's bytes verbatim (keep-alive comment
+        lines included) and ends quietly if the upstream breaks."""
+        ...
+
+
+class _HttpEventStream:
+    def __init__(self, client: httpx.Client, response: httpx.Response) -> None:
+        self._client = client
+        self._response = response
+
+    def __iter__(self) -> Iterator[bytes]:
+        try:
+            yield from self._response.iter_raw()
+        except httpx.HTTPError:
+            return  # upstream broke mid-stream: end quietly, the browser reconnects
+
+    def close(self) -> None:
+        try:
+            self._response.close()
+        finally:
+            self._client.close()
 
 
 class HttpGateway:
@@ -53,6 +88,31 @@ class HttpGateway:
 
     def evaluate(self, request: GatewayRequest) -> GatewayResult:
         return self._call("evaluate", request)
+
+    def open_events(self) -> EventStream:
+        path = GATEWAY_ROUTES["events"].split(" ", 1)[1]
+        # No read timeout: the stream is long-lived. The connect timeout is kept.
+        client = httpx.Client(
+            timeout=httpx.Timeout(self.timeout_s, read=None),
+        )
+        try:
+            response = client.send(
+                client.build_request(
+                    "GET",
+                    f"{self.base_url.rstrip('/')}{path}",
+                    headers={"Accept": "text/event-stream"},
+                ),
+                stream=True,
+            )
+        except httpx.HTTPError as exc:
+            client.close()
+            raise GatewayUnavailable(str(exc)) from exc
+        if response.status_code != 200:
+            status = response.status_code
+            response.close()
+            client.close()
+            raise GatewayUnavailable(f"Gateway event stream answered HTTP {status}.")
+        return _HttpEventStream(client, response)
 
     def _call(self, route: str, request: GatewayRequest) -> GatewayResult:
         path = GATEWAY_ROUTES[route].split(" ", 1)[1]

@@ -52,3 +52,14 @@ export const metricsFixture: MetricsSummary = {
   pending_with_markoff: 2,
   pending_with_markoff_share: 0.4,
 };
+
+import type { LedgerEvent } from "../src/generated/contracts";
+
+export function ledgerEvent(sbHash: string, milestone: Milestone = Milestone.PAYMENT_RECEIVED): LedgerEvent {
+  return {
+    name: "MilestoneRecorded",
+    block_number: 7,
+    tx_id: "tx-live-1",
+    event: { ...timelineFixture.record.events[1], sb_hash: sbHash, milestone, tx_id: "tx-live-1" },
+  };
+}
