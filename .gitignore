@@ -20,3 +20,5 @@ CLAUDE.local.md
 # os
 .DS_Store
 .demo-logs/
+# agent worktrees
+.claude/worktrees/
