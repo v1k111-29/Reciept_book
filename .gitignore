@@ -9,6 +9,8 @@ dist/
 # local config and secrets: never commit
 .env
 .env.*
+deploy/gateway.env
+deploy/*.tmp
 network/env.sh
 *.pem
 *_sk

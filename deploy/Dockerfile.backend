@@ -1,0 +1,26 @@
+# Backend (FastAPI) for the single-VM kit (docs/DEPLOY.md). Build context: repository root.
+# Runtime dependencies only: pytest is in the "dev" dependency group, left out by --no-dev.
+FROM python:3.11-slim
+
+# uv, pinned; installs exactly what uv.lock says (--frozen: never re-resolves).
+COPY --from=ghcr.io/astral-sh/uv:0.12.19 /uv /usr/local/bin/uv
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/app/.venv \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+# pyproject.toml has package = false, so nothing of the project itself is installed here.
+RUN uv sync --frozen --no-dev
+COPY backend ./backend
+
+RUN useradd --system --no-create-home --uid 10001 receiptbook
+USER receiptbook
+ENV PATH=/app/.venv/bin:$PATH
+
+# Host networking (deploy/docker-compose.yml): listen on loopback only; Caddy is the way in.
+# S14_HASH_SALT and S14_GATEWAY_URL come from the compose file.
+EXPOSE 8000
+CMD ["uvicorn", "s14.api:app", "--app-dir", "backend", "--host", "127.0.0.1", "--port", "8000"]

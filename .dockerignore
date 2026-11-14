@@ -1,0 +1,17 @@
+# Build context for deploy/Dockerfile.* (context = repository root, see deploy/docker-compose.yml).
+# Keeps local installs, logs and every secret out of the images.
+.git
+.github
+.claude
+**/node_modules
+**/dist
+.venv
+**/__pycache__
+.pytest_cache
+.demo-logs
+live-*
+network/env.sh
+deploy/.env
+deploy/gateway.env
+**/*.pem
+**/*_sk

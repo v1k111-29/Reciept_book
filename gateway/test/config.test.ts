@@ -20,6 +20,12 @@ describe("loadConfig (P3, extra)", () => {
     expect([c.port, c.channel, c.chaincode]).toEqual([9900, "mychannel", "basic"]);
   });
 
+  it("reads S14_GATEWAY_HOST when set and leaves host out otherwise", () => {
+    expect(loadConfig({ ...env, S14_GATEWAY_HOST: " 127.0.0.1 " }).host).toBe("127.0.0.1");
+    expect(loadConfig(env)).not.toHaveProperty("host");
+    expect(loadConfig({ ...env, S14_GATEWAY_HOST: "  " })).not.toHaveProperty("host");
+  });
+
   it.each(["abc", "0", "70000", "80.5"])("rejects port %s, naming S14_GATEWAY_PORT", (port) => {
     expect(() => loadConfig({ ...env, S14_GATEWAY_PORT: port })).toThrow(/S14_GATEWAY_PORT/);
   });

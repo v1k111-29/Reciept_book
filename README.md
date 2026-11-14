@@ -149,8 +149,9 @@ chaincode/                 receiptbook chaincode (TypeScript)
 gateway/                   HTTP bridge to Drunix (Node, TypeScript)
 frontend/                  browser UI (React, Vite)
 network/                   wrappers around the Drunix test network
+deploy/                    single-VM kit: Dockerfiles, docker-compose.yml, Caddyfile (docs/DEPLOY.md)
 tests/                     Python tests: contracts/, backend/, integration/ (live)
-scripts/                   check_all.sh, demo.sh, e3_endorsement_check.sh, ui_smoke.mjs, contract tooling, git hooks
+scripts/                   check_all.sh, demo.sh, deploy.sh, e3_endorsement_check.sh, ui_smoke.mjs, contract tooling, git hooks
 docs/                      PROBLEM, ARCHITECTURE, DECISIONS, UNKNOWNS, RUNBOOK
 .github/workflows/         ci.yml (every PR), live.yml (Drunix network on a hosted runner)
 ```
@@ -215,6 +216,18 @@ bash network/down.sh
 
 Health checks and troubleshooting: [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
+## Deploy
+
+To run it on one Ubuntu VM, with the gateway, backend and UI as Docker Compose services behind
+Caddy (basic auth, optional automatic HTTPS):
+
+```bash
+bash scripts/deploy.sh up      # starts the Drunix network only if it is not running
+```
+
+Setup, domains, firewall, password rotation, updates and limitations:
+[docs/DEPLOY.md](docs/DEPLOY.md). It is still Drunix's test network, not a production network.
+
 ## HTTP API
 
 From `BACKEND_ROUTES` and `GATEWAY_ROUTES` in `backend/s14/contracts.py`. Bodies are JSON.
@@ -252,6 +265,8 @@ from the backend or a `GatewayResult` with `ok: false` from the gateway.
 | `S14_GATEWAY_URL` | backend, live tests | `http://localhost:8800` | Gateway base URL |
 | `S14_BACKEND_URL` | seed command | `http://localhost:8000` | Backend URL (also `--backend`) |
 | `S14_GATEWAY_PORT` | gateway | `8800` | Listen port |
+| `S14_GATEWAY_HOST` | gateway | all interfaces | Listen address, e.g. `127.0.0.1` |
+| `DEPLOY_BASIC_AUTH_PASSWORD` | `scripts/deploy.sh` | generated | Basic-auth password for automation ([docs/DEPLOY.md](docs/DEPLOY.md)) |
 | `S14_CHANNEL`, `S14_CHAINCODE` | gateway, network scripts | `receiptbook` | Channel and chaincode name |
 | `S14_<ROLE>_MSP_ID` | gateway | none | MSP id for `AD_BANK`, `EXPORTERS_BODY` or optional `CUSTOMS_VIEWER`; must agree with `DEFAULT_MSP_ROLES` |
 | `S14_<ROLE>_PEER_ENDPOINT` | gateway | none | Peer address, e.g. `localhost:7051` |
@@ -338,6 +353,7 @@ Not built yet (details in [FEATURES.md](FEATURES.md)):
 - [docs/PROBLEM.md](docs/PROBLEM.md): the problem, the evidence and the sources.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): components, data flow, contracts, errors, events.
 - [docs/RUNBOOK.md](docs/RUNBOOK.md): operating the network and the services.
+- [docs/DEPLOY.md](docs/DEPLOY.md): deploying on one Linux VM with Docker Compose and Caddy.
 - [docs/DECISIONS.md](docs/DECISIONS.md): technical decisions (D-n).
 - [docs/UNKNOWNS.md](docs/UNKNOWNS.md): open and answered technical questions (U-n).
 - [FEATURES.md](FEATURES.md): features, roadmap and scope.

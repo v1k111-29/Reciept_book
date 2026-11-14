@@ -6,7 +6,8 @@ checks and the demo, and fix the problems seen so far. Network details and platf
 
 Everything here needs a Linux machine with Docker (macOS on Apple Silicon also works; see
 `network/README.md`). If you have no such machine, use the hosted live workflow
-(section 6).
+(section 6). To run the services as Docker Compose containers behind Caddy on one VM instead of
+by hand, see [DEPLOY.md](DEPLOY.md) (`bash scripts/deploy.sh up`).
 
 ## 1. One-time setup
 
@@ -121,8 +122,9 @@ gh workflow run live.yml --ref <branch>
 ```
 
 It also runs on pushes to branches matching `p1/g2-live-*`. It passes only if the live suite,
-the endorsement check and the headless demo (`loaded 30/30`, six records in each bucket, UI
-smoke test) all pass. Logs, container logs and screenshots are in the run's `live-evidence`
+the endorsement check, the headless demo (`loaded 30/30`, six records in each bucket, UI
+smoke test) and the VM kit check (`scripts/deploy.sh up` on the demo's network, then requests
+through Caddy on port 80; [DEPLOY.md](DEPLOY.md)) all pass. Logs, container logs and screenshots are in the run's `live-evidence`
 artifact.
 
 ## 7. Troubleshooting

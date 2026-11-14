@@ -6,6 +6,7 @@
  * Pure: reads `env` only, opens no files and no connections.
  *
  *   S14_GATEWAY_PORT             default 8800
+ *   S14_GATEWAY_HOST             optional listen address, e.g. 127.0.0.1 (deploy/); unset = all interfaces
  *   S14_CHANNEL                  default "receiptbook"
  *   S14_CHAINCODE                default "receiptbook"
  *   S14_<ROLE>_MSP_ID            e.g. S14_AD_BANK_MSP_ID=Org1MSP (must agree with DEFAULT_MSP_ROLES)
@@ -37,6 +38,8 @@ export interface IdentityConfig {
 
 export interface GatewayConfig {
   port: number;
+  /** Listen address; absent = Node's default (all interfaces). */
+  host?: string;
   channel: string;
   chaincode: string;
   identities: Partial<Record<OrgRole, IdentityConfig>>;
@@ -113,8 +116,10 @@ export function loadConfig(env: Env = process.env): GatewayConfig {
   if (missing.length > 0) problems.unshift(`missing environment variables: ${missing.join(", ")}`);
   if (problems.length > 0) throw new Error(`gateway config: ${problems.join("; ")}`);
 
+  const host = read(env, "S14_GATEWAY_HOST");
   return {
     port,
+    ...(host !== undefined && { host }),
     channel: read(env, "S14_CHANNEL") ?? "receiptbook",
     chaincode: read(env, "S14_CHAINCODE") ?? "receiptbook",
     identities,

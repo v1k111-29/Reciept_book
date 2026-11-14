@@ -1,0 +1,28 @@
+# Gateway (Node, Fabric Gateway client) for the single-VM kit (docs/DEPLOY.md).
+# Build context: repository root. Compiled with the package's own `npm run build` (tsc) and run
+# as `node dist/main.js`, as gateway/src/main.ts documents; dev dependencies (tsc, tsx, vitest)
+# stay in the build stage.
+FROM node:22-slim AS build
+WORKDIR /app
+COPY gateway/package.json gateway/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY gateway/tsconfig.json ./
+COPY gateway/src ./src
+RUN npm run build && npm prune --omit=dev --no-audit --no-fund
+
+FROM node:22-slim
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /app/package.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+
+# Non-root. deploy/docker-compose.yml overrides this with the host user's uid:gid
+# (DEPLOY_UID/DEPLOY_GID, set by scripts/deploy.sh), because cryptogen may write the client
+# private keys mode 0600 for the user who ran network/up.sh; the image files are world-readable.
+USER node
+
+# Settings: S14_* from deploy/gateway.env (generated from network/gateway-env.sh), plus
+# S14_GATEWAY_HOST=127.0.0.1 from the compose file.
+EXPOSE 8800
+CMD ["node", "dist/main.js"]

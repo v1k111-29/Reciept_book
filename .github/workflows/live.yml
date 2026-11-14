@@ -132,12 +132,61 @@ jobs:
           assert len(counts) == 5 and set(counts.values()) == {6}, counts
           PY
 
+      # VM kit (docs/DEPLOY.md, D-35) on this runner: demo.sh's cleanup stops only its own processes,
+      # so the demo's network (with chaincode) is still up and deploy.sh must leave it alone.
+      # Port 80 is not used by any earlier step. The password is CI-only (DEPLOY_BASIC_AUTH_PASSWORD).
+      - name: Deploy kit (scripts/deploy.sh; checks through Caddy on :80)
+        id: deploykit
+        continue-on-error: true
+        env:
+          DEPLOY_BASIC_AUTH_PASSWORD: ci-deploykit-${{ github.run_id }}
+        run: |
+          {
+            pkill -f 'tsx src/main.ts' || true; pkill -f 'uvicorn s14.api' || true; pkill -f vite || true
+            bash scripts/deploy.sh up
+            bash scripts/deploy.sh status
+            U="receiptbook:$DEPLOY_BASIC_AUTH_PASSWORD"
+            S=http://127.0.0.1
+            echo "== 401 without credentials"
+            for p in / /api/health /api/events; do
+              code="$(curl -s -o /dev/null -w '%{http_code}' "$S$p")"; echo "$p -> $code"; [ "$code" = 401 ]
+            done
+            echo "== /api/health"
+            curl -fsS -u "$U" "$S/api/health" | python3 -c 'import json,sys; h=json.load(sys.stdin); print(h); assert h["status"]=="ok" and h["contracts_version"]=="1.1.0", h'
+            echo "== UI and single-page fallback"
+            curl -fsS -u "$U" "$S/" | grep -q "Receipt Book"
+            curl -fsS -u "$U" "$S/some/client/route" | grep -q "Receipt Book"
+            echo "== create a synthetic record and read it back"
+            body="{\"sb_number\":\"DK$(date +%s)\",\"port_code\":\"SYNPORT\",\"sb_date\":\"$(date -u +%F)\"}"
+            receipt="$(curl -fsS -u "$U" -H 'Content-Type: application/json' -d "$body" "$S/api/records")"
+            sb_hash="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["sb_hash"])' <<<"$receipt")"
+            echo "created $sb_hash"
+            curl -fsS -u "$U" "$S/api/records/$sb_hash" | python3 -c 'import json,sys; t=json.load(sys.stdin); assert t["record"]["sb_hash"]==sys.argv[1], t; print("read back", t["record"]["sb_hash"], t["assessment"]["bucket"])' "$sb_hash"
+            echo "== event stream through Caddy (keep-alive comment within 5 s)"
+            rc=0; events="$(curl -sN --max-time 5 -u "$U" "$S/api/events")" || rc=$?
+            echo "curl exit $rc"; printf '%s\n' "$events" | head -5
+            if [ "$rc" != 28 ] || ! grep -q '^: keep-alive' <<<"$events"; then echo "no keep-alive within 5 s" >&2; exit 1; fi
+            echo "== second up: idempotent, salt kept, network untouched"
+            salt_before="$(grep '^S14_HASH_SALT=' deploy/.env | sha256sum)"
+            DEPLOY_BASIC_AUTH_PASSWORD= bash scripts/deploy.sh up
+            [ "$(grep '^S14_HASH_SALT=' deploy/.env | sha256sum)" = "$salt_before" ]
+            [ "$(stat -c %a deploy/.env)" = 600 ]
+            curl -fsS -u "$U" "$S/api/records/$sb_hash" >/dev/null
+            echo "deploy kit OK"
+          } 2>&1 | tee live-deploykit.log
+          exit "${PIPESTATUS[0]}"
+
       - name: Container state and logs
         if: always()
         run: |
           mkdir -p live-artifacts/containers
           docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}' | tee live-artifacts/containers.txt
           for c in $(docker ps -a --format '{{.Names}}'); do docker logs "$c" > "live-artifacts/containers/$c.log" 2>&1 || true; done
+          if [ -f deploy/.env ]; then   # deploy kit services (the .env itself holds secrets: not copied)
+            DEPLOY_UID="$(id -u)" DEPLOY_GID="$(id -g)" DRUNIX_ORGS_DIR="$DRUNIX_DIR/drunix-network/test-network/organizations" \
+              docker compose -f deploy/docker-compose.yml --env-file deploy/.env logs --no-color --timestamps > live-deploykit-compose.log 2>&1 || true
+            cp deploy/gateway.env live-artifacts/deploykit-gateway.env 2>/dev/null || true   # paths only
+          fi
           cp live-*.log live-artifacts/ 2>/dev/null || true
           cp -r .demo-logs live-artifacts/demo-logs 2>/dev/null || true   # upload-artifact skips dot-dirs
 
@@ -151,7 +200,7 @@ jobs:
       - name: Result
         if: always()
         run: |
-          echo "suite=${{ steps.suite.outcome }} e3=${{ steps.e3.outcome }} demo=${{ steps.demo.outcome }}"
+          echo "suite=${{ steps.suite.outcome }} e3=${{ steps.e3.outcome }} demo=${{ steps.demo.outcome }} deploykit=${{ steps.deploykit.outcome }}"
           # Failure summaries as annotations, so they can be read through the API without the log.
           note() { # note <title> <text>: one error annotation, newlines kept
             local text="${2//'%'/%25}"; text="${text//$'\r'/}"; text="${text//$'\n'/%0A}"
@@ -168,4 +217,8 @@ jobs:
             note "demo backend log" "$(tail -15 .demo-logs/backend.log 2>/dev/null)" || true
             note "demo gateway log" "$(tail -15 .demo-logs/gateway.log 2>/dev/null)" || true
           fi
-          [ "${{ steps.suite.outcome }}" = success ] && [ "${{ steps.e3.outcome }}" = success ] && [ "${{ steps.demo.outcome }}" = success ]
+          if [ "${{ steps.deploykit.outcome }}" != success ]; then
+            note "deploy kit" "$(tail -30 live-deploykit.log 2>/dev/null)" || true
+          fi
+          [ "${{ steps.suite.outcome }}" = success ] && [ "${{ steps.e3.outcome }}" = success ] && [ "${{ steps.demo.outcome }}" = success ] \
+            && [ "${{ steps.deploykit.outcome }}" = success ]
