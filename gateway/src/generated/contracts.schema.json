@@ -1,8 +1,11 @@
 {
   "backend_routes": {
+    "check_reference": "POST /records/{sb_hash}/reference-check",
     "create_record": "POST /records",
+    "events": "GET /events",
     "get_timeline": "GET /records/{sb_hash}",
     "health": "GET /health",
+    "import_customs": "POST /customs/import",
     "list_records": "GET /records",
     "metrics": "GET /metrics",
     "record_milestone": "POST /records/{sb_hash}/milestones"
@@ -29,8 +32,9 @@
     "CreateRecord",
     "RecordMilestone"
   ],
-  "contracts_version": "1.0.0",
+  "contracts_version": "1.1.0",
   "create_record_role": "AD_BANK",
+  "customs_import_max_rows": 200,
   "default_msp_roles": {
     "Org1MSP": "AD_BANK",
     "Org2MSP": "EXPORTERS_BODY"
@@ -67,6 +71,11 @@
       "OUTCOME_UNKNOWN",
       "INTERNAL"
     ],
+    "ImportOutcome": [
+      "RECORDED",
+      "NOT_FOUND",
+      "FAILED"
+    ],
     "Milestone": [
       "DOCS_ACKNOWLEDGED",
       "PAYMENT_RECEIVED",
@@ -96,10 +105,12 @@
   },
   "gateway_routes": {
     "evaluate": "POST /evaluate",
+    "events": "GET /events",
     "health": "GET /health",
     "submit": "POST /submit"
   },
   "hash_pattern": "^[0-9a-f]{64}$",
+  "milestone_recorded_event": "MilestoneRecorded",
   "models": {
     "CauseAssessment": {
       "$defs": {
@@ -181,6 +192,374 @@
         "sb_date"
       ],
       "title": "CreateRecordRequest",
+      "type": "object"
+    },
+    "CustomsImportRequest": {
+      "$defs": {
+        "CustomsImportRow": {
+          "additionalProperties": false,
+          "description": "One line of a Customs pending/realised list. Raw identifiers; the backend hashes them.",
+          "properties": {
+            "customs_status": {
+              "$ref": "#/$defs/CustomsStatus"
+            },
+            "observed_on": {
+              "format": "date",
+              "title": "Observed On",
+              "type": "string"
+            },
+            "port_code": {
+              "maxLength": 10,
+              "minLength": 1,
+              "title": "Port Code",
+              "type": "string"
+            },
+            "sb_date": {
+              "format": "date",
+              "title": "Sb Date",
+              "type": "string"
+            },
+            "sb_number": {
+              "maxLength": 20,
+              "minLength": 1,
+              "title": "Sb Number",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sb_number",
+            "port_code",
+            "sb_date",
+            "customs_status",
+            "observed_on"
+          ],
+          "title": "CustomsImportRow",
+          "type": "object"
+        },
+        "CustomsStatus": {
+          "enum": [
+            "REALISED",
+            "PENDING"
+          ],
+          "title": "CustomsStatus",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Frontend -> backend. The frontend parses the CSV; the backend records each row as a\nCUSTOMS_STATUS_OBSERVED milestone signed by WRITER_ROLE[CUSTOMS_STATUS_OBSERVED].",
+      "properties": {
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/CustomsImportRow"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rows"
+      ],
+      "title": "CustomsImportRequest",
+      "type": "object"
+    },
+    "CustomsImportResult": {
+      "$defs": {
+        "CustomsImportRowResult": {
+          "additionalProperties": false,
+          "properties": {
+            "error": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ErrorBody"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "outcome": {
+              "$ref": "#/$defs/ImportOutcome"
+            },
+            "row": {
+              "minimum": 1,
+              "title": "Row",
+              "type": "integer"
+            },
+            "sb_hash": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Sb Hash"
+            },
+            "tx_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Tx Id"
+            }
+          },
+          "required": [
+            "row",
+            "outcome"
+          ],
+          "title": "CustomsImportRowResult",
+          "type": "object"
+        },
+        "ErrorBody": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ErrorBody",
+          "type": "object"
+        },
+        "ErrorCode": {
+          "enum": [
+            "VALIDATION",
+            "NOT_FOUND",
+            "ALREADY_EXISTS",
+            "WRONG_ROLE",
+            "WRONG_BANK",
+            "PRECONDITION_FAILED",
+            "DUPLICATE_MILESTONE",
+            "ENDORSEMENT_FAILED",
+            "MVCC_CONFLICT",
+            "LEDGER_UNAVAILABLE",
+            "OUTCOME_UNKNOWN",
+            "INTERNAL"
+          ],
+          "title": "ErrorCode",
+          "type": "string"
+        },
+        "ImportOutcome": {
+          "description": "Result of one row of a Customs bulk import (1.1.0).",
+          "enum": [
+            "RECORDED",
+            "NOT_FOUND",
+            "FAILED"
+          ],
+          "title": "ImportOutcome",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Backend -> frontend. Rows are processed in order; one failed row does not stop the rest.",
+      "properties": {
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "not_found": {
+          "minimum": 0,
+          "title": "Not Found",
+          "type": "integer"
+        },
+        "recorded": {
+          "minimum": 0,
+          "title": "Recorded",
+          "type": "integer"
+        },
+        "rows": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CustomsImportRowResult"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "recorded",
+        "not_found",
+        "failed"
+      ],
+      "title": "CustomsImportResult",
+      "type": "object"
+    },
+    "CustomsImportRow": {
+      "$defs": {
+        "CustomsStatus": {
+          "enum": [
+            "REALISED",
+            "PENDING"
+          ],
+          "title": "CustomsStatus",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "One line of a Customs pending/realised list. Raw identifiers; the backend hashes them.",
+      "properties": {
+        "customs_status": {
+          "$ref": "#/$defs/CustomsStatus"
+        },
+        "observed_on": {
+          "format": "date",
+          "title": "Observed On",
+          "type": "string"
+        },
+        "port_code": {
+          "maxLength": 10,
+          "minLength": 1,
+          "title": "Port Code",
+          "type": "string"
+        },
+        "sb_date": {
+          "format": "date",
+          "title": "Sb Date",
+          "type": "string"
+        },
+        "sb_number": {
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Sb Number",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sb_number",
+        "port_code",
+        "sb_date",
+        "customs_status",
+        "observed_on"
+      ],
+      "title": "CustomsImportRow",
+      "type": "object"
+    },
+    "CustomsImportRowResult": {
+      "$defs": {
+        "ErrorBody": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ErrorBody",
+          "type": "object"
+        },
+        "ErrorCode": {
+          "enum": [
+            "VALIDATION",
+            "NOT_FOUND",
+            "ALREADY_EXISTS",
+            "WRONG_ROLE",
+            "WRONG_BANK",
+            "PRECONDITION_FAILED",
+            "DUPLICATE_MILESTONE",
+            "ENDORSEMENT_FAILED",
+            "MVCC_CONFLICT",
+            "LEDGER_UNAVAILABLE",
+            "OUTCOME_UNKNOWN",
+            "INTERNAL"
+          ],
+          "title": "ErrorCode",
+          "type": "string"
+        },
+        "ImportOutcome": {
+          "description": "Result of one row of a Customs bulk import (1.1.0).",
+          "enum": [
+            "RECORDED",
+            "NOT_FOUND",
+            "FAILED"
+          ],
+          "title": "ImportOutcome",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorBody"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "outcome": {
+          "$ref": "#/$defs/ImportOutcome"
+        },
+        "row": {
+          "minimum": 1,
+          "title": "Row",
+          "type": "integer"
+        },
+        "sb_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sb Hash"
+        },
+        "tx_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tx Id"
+        }
+      },
+      "required": [
+        "row",
+        "outcome"
+      ],
+      "title": "CustomsImportRowResult",
       "type": "object"
     },
     "ErrorBody": {
@@ -369,6 +748,140 @@
         "contracts_version"
       ],
       "title": "HealthResponse",
+      "type": "object"
+    },
+    "LedgerEvent": {
+      "$defs": {
+        "CustomsStatus": {
+          "enum": [
+            "REALISED",
+            "PENDING"
+          ],
+          "title": "CustomsStatus",
+          "type": "string"
+        },
+        "Milestone": {
+          "description": "Milestones recorded per shipping bill (docs/PROBLEM.md, Part 6.3).",
+          "enum": [
+            "DOCS_ACKNOWLEDGED",
+            "PAYMENT_RECEIVED",
+            "EBRC_SELF_CERTIFIED",
+            "EDPMS_MARKED_OFF",
+            "CUSTOMS_STATUS_OBSERVED"
+          ],
+          "title": "Milestone",
+          "type": "string"
+        },
+        "MilestoneEvent": {
+          "additionalProperties": false,
+          "description": "A milestone as stored on the ledger (chaincode adds tx_id, time and submitter).",
+          "properties": {
+            "customs_status": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CustomsStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "ledger_time": {
+              "format": "date-time",
+              "title": "Ledger Time",
+              "type": "string"
+            },
+            "milestone": {
+              "$ref": "#/$defs/Milestone"
+            },
+            "occurred_on": {
+              "description": "Date the real-world step happened, as attested by the submitter. For DOCS_ACKNOWLEDGED it is the date the exporter handed the documents over (pilot measure 1).",
+              "format": "date",
+              "title": "Occurred On",
+              "type": "string"
+            },
+            "reference_hash": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Reference Hash"
+            },
+            "sb_hash": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sb Hash",
+              "type": "string"
+            },
+            "submitter_msp": {
+              "title": "Submitter Msp",
+              "type": "string"
+            },
+            "submitter_role": {
+              "$ref": "#/$defs/OrgRole"
+            },
+            "tx_id": {
+              "title": "Tx Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sb_hash",
+            "milestone",
+            "occurred_on",
+            "tx_id",
+            "ledger_time",
+            "submitter_msp",
+            "submitter_role"
+          ],
+          "title": "MilestoneEvent",
+          "type": "object"
+        },
+        "OrgRole": {
+          "description": "Role of a Drunix organisation (MSP) in the pilot.",
+          "enum": [
+            "AD_BANK",
+            "EXPORTERS_BODY",
+            "CUSTOMS_VIEWER"
+          ],
+          "title": "OrgRole",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "One committed chaincode event, sent as the `data:` line (JSON) of a server-sent event\non GATEWAY_ROUTES[\"events\"] and BACKEND_ROUTES[\"events\"]. Carries hashes only.",
+      "properties": {
+        "block_number": {
+          "minimum": 0,
+          "title": "Block Number",
+          "type": "integer"
+        },
+        "event": {
+          "$ref": "#/$defs/MilestoneEvent"
+        },
+        "name": {
+          "const": "MilestoneRecorded",
+          "title": "Name",
+          "type": "string"
+        },
+        "tx_id": {
+          "title": "Tx Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "block_number",
+        "tx_id",
+        "event"
+      ],
+      "title": "LedgerEvent",
       "type": "object"
     },
     "MetricsSummary": {
@@ -695,6 +1208,110 @@
         "occurred_on"
       ],
       "title": "MilestoneSubmission",
+      "type": "object"
+    },
+    "ReferenceCheckRequest": {
+      "$defs": {
+        "Milestone": {
+          "description": "Milestones recorded per shipping bill (docs/PROBLEM.md, Part 6.3).",
+          "enum": [
+            "DOCS_ACKNOWLEDGED",
+            "PAYMENT_RECEIVED",
+            "EBRC_SELF_CERTIFIED",
+            "EDPMS_MARKED_OFF",
+            "CUSTOMS_STATUS_OBSERVED"
+          ],
+          "title": "Milestone",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Frontend -> backend: does this raw reference match what the ledger holds?\n\n`reference` is the same raw value a MilestoneRequest would carry. For a document, it is the\nlowercase SHA-256 hex of the file, computed in the browser: the file itself is never\nuploaded. The backend hashes the reference with the salt and compares; it stores nothing.",
+      "properties": {
+        "milestone": {
+          "$ref": "#/$defs/Milestone"
+        },
+        "reference": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "milestone",
+        "reference"
+      ],
+      "title": "ReferenceCheckRequest",
+      "type": "object"
+    },
+    "ReferenceCheckResult": {
+      "$defs": {
+        "Milestone": {
+          "description": "Milestones recorded per shipping bill (docs/PROBLEM.md, Part 6.3).",
+          "enum": [
+            "DOCS_ACKNOWLEDGED",
+            "PAYMENT_RECEIVED",
+            "EBRC_SELF_CERTIFIED",
+            "EDPMS_MARKED_OFF",
+            "CUSTOMS_STATUS_OBSERVED"
+          ],
+          "title": "Milestone",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "`recorded` is False when the record has no such milestone (then `matches` is False).\n`tx_id` and `ledger_time` are those of the milestone on the ledger, when recorded.",
+      "properties": {
+        "ledger_time": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ledger Time"
+        },
+        "matches": {
+          "title": "Matches",
+          "type": "boolean"
+        },
+        "milestone": {
+          "$ref": "#/$defs/Milestone"
+        },
+        "recorded": {
+          "title": "Recorded",
+          "type": "boolean"
+        },
+        "sb_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sb Hash",
+          "type": "string"
+        },
+        "tx_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tx Id"
+        }
+      },
+      "required": [
+        "sb_hash",
+        "milestone",
+        "recorded",
+        "matches"
+      ],
+      "title": "ReferenceCheckResult",
       "type": "object"
     },
     "ShippingBillRecord": {

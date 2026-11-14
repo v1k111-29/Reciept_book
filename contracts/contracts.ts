@@ -8,7 +8,7 @@
  * mismatch between Python and TypeScript turns a test red.
  */
 
-export const CONTRACTS_VERSION = "1.0.0";
+export const CONTRACTS_VERSION = "1.1.0";
 export const HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 export const OrgRole = {
@@ -62,6 +62,14 @@ export const ErrorCode = {
   INTERNAL: "INTERNAL", // unexpected gateway or chaincode failure (fallback; keep last)
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
+
+/** Result of one row of a Customs bulk import (1.1.0). */
+export const ImportOutcome = {
+  RECORDED: "RECORDED",
+  NOT_FOUND: "NOT_FOUND", // no record on the book for this shipping bill; nothing written
+  FAILED: "FAILED", // the row was invalid or the write failed; see `error`
+} as const;
+export type ImportOutcome = (typeof ImportOutcome)[keyof typeof ImportOutcome];
 
 export const WRITER_ROLE: Record<Milestone, OrgRole> = {
   DOCS_ACKNOWLEDGED: "AD_BANK",
@@ -139,13 +147,26 @@ export const BACKEND_ROUTES = {
   get_timeline: "GET /records/{sb_hash}",
   list_records: "GET /records",
   metrics: "GET /metrics",
+  events: "GET /events", // text/event-stream; each event's data is a LedgerEvent (1.1.0)
+  import_customs: "POST /customs/import", // CustomsImportRequest -> CustomsImportResult (1.1.0)
+  check_reference: "POST /records/{sb_hash}/reference-check", // ReferenceCheckRequest -> ReferenceCheckResult (1.1.0)
 } as const;
 
 export const GATEWAY_ROUTES = {
   health: "GET /health",
   submit: "POST /submit",
   evaluate: "POST /evaluate",
+  // 1.1.0: text/event-stream of committed chaincode events, new ones only (no replay). Each is
+  // "event: MilestoneRecorded" + "data: <LedgerEvent JSON>"; comment lines (": ...") are
+  // keep-alives. LEDGER_UNAVAILABLE (503, GatewayResult body) if no event source is configured.
+  events: "GET /events",
 } as const;
+
+/** Name of the chaincode event emitted by RecordMilestone; payload = the MilestoneEvent JSON. */
+export const MILESTONE_RECORDED_EVENT = "MilestoneRecorded";
+
+/** Most rows one Customs import request may carry. Each row is one ledger transaction. */
+export const CUSTOMS_IMPORT_MAX_ROWS = 200;
 
 // ---- model shapes (dates as ISO strings on the wire) ----
 // No free-text field on any ledger shape: it could carry a raw SB/IRM/eBRC number (E9, D-17).
@@ -235,6 +256,64 @@ export interface HealthResponse {
   contracts_version: string;
 }
 
+// ---- 1.1.0 additions ----
+
+/** One committed chaincode event: the JSON `data:` of a server-sent event on the /events routes. */
+export interface LedgerEvent {
+  name: "MilestoneRecorded";
+  block_number: number;
+  tx_id: string;
+  event: MilestoneEvent;
+}
+
+/** One line of a Customs pending/realised list. Raw identifiers; the backend hashes them. */
+export interface CustomsImportRow {
+  sb_number: string;
+  port_code: string;
+  sb_date: string; // YYYY-MM-DD
+  customs_status: CustomsStatus;
+  observed_on: string; // YYYY-MM-DD; becomes occurred_on
+}
+
+export interface CustomsImportRequest {
+  rows: CustomsImportRow[]; // 1..CUSTOMS_IMPORT_MAX_ROWS
+}
+
+export interface CustomsImportRowResult {
+  row: number; // 1-based position in the request
+  sb_hash?: string | null; // null if hashing failed
+  outcome: ImportOutcome;
+  tx_id?: string | null; // set when RECORDED
+  error?: ErrorBody | null; // set when FAILED
+}
+
+export interface CustomsImportResult {
+  total: number;
+  recorded: number;
+  not_found: number;
+  failed: number;
+  rows: CustomsImportRowResult[];
+}
+
+/**
+ * Does this raw reference match what the ledger holds? For a document, `reference` is the
+ * lowercase SHA-256 hex of the file, computed in the browser; the file is never uploaded.
+ * `milestone` must be in REFERENCE_REQUIRED.
+ */
+export interface ReferenceCheckRequest {
+  milestone: Milestone;
+  reference: string;
+}
+
+export interface ReferenceCheckResult {
+  sb_hash: string;
+  milestone: Milestone;
+  recorded: boolean; // false: the record has no such milestone (then matches is false)
+  matches: boolean;
+  tx_id?: string | null;
+  ledger_time?: string | null;
+}
+
 /** Field names of each model, checked against the JSON schema by the parity tests. */
 export const MODEL_FIELDS: Record<string, readonly string[]> = {
   MilestoneSubmission: ["sb_hash", "milestone", "occurred_on", "reference_hash", "customs_status"],
@@ -256,4 +335,11 @@ export const MODEL_FIELDS: Record<string, readonly string[]> = {
   GatewayRequest: ["function", "args", "identity"],
   GatewayResult: ["ok", "tx_id", "payload", "error"],
   HealthResponse: ["status", "contracts_version"],
+  LedgerEvent: ["name", "block_number", "tx_id", "event"],
+  CustomsImportRow: ["sb_number", "port_code", "sb_date", "customs_status", "observed_on"],
+  CustomsImportRequest: ["rows"],
+  CustomsImportRowResult: ["row", "sb_hash", "outcome", "tx_id", "error"],
+  CustomsImportResult: ["total", "recorded", "not_found", "failed", "rows"],
+  ReferenceCheckRequest: ["milestone", "reference"],
+  ReferenceCheckResult: ["sb_hash", "milestone", "recorded", "matches", "tx_id", "ledger_time"],
 };
